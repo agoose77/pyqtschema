@@ -11,6 +11,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from qtjsonschema.widgets import create_widget
 
 class MainWindow(QtWidgets.QWidget):
+    schema = None
 
     def __init__(self, parent=None):
         QtWidgets.QWidget.__init__(self, parent)
@@ -72,6 +73,20 @@ class MainWindow(QtWidgets.QWidget):
 
         self.content_region.setWidget(create_widget(_schema.get("title", "(root)"), _schema))
         self.content_region.setWidgetResizable(True)
+        self.schema = _schema
+
+    def load_json(self, json_file):
+        """
+            Load a schema and create the root element.
+        """
+        import json
+        import collections
+        with open(json_file) as f:
+            json_file = json.loads(f.read(), object_pairs_hook=collections.OrderedDict)
+            print(json_file, self.schema)
+            from jsonschema import validate
+            validate(json_file, self.schema)
+
 
     def _handle_open(self):
         # Open JSON Schema
@@ -97,16 +112,20 @@ import click
 
 @click.command()
 @click.option('--schema', default=None, help='Schema file to generate an editing window from.')
-def json_editor(schema):
+@click.option('--json', default=None, help='Schema file to generate an editing window from.')
+def json_editor(schema, json):
     import sys
-    print(sys.argv)
 
     app = QtWidgets.QApplication(sys.argv)
     main_window = MainWindow()
     main_window.show()
+    main_window.resize(1000,800)
 
     if schema:
         main_window.process_schema(schema)
+        print(schema, json)
+        if json:
+            main_window.load_json(json)
 
     sys.exit(app.exec_())
 

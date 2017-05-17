@@ -23,7 +23,7 @@ class UnsupportedSchema(QtWidgets.QLabel):
 
 class JsonBaseWidget(object):
     def __init__(self, name, schema, parent=None):
-        super().__init__(name, parent)
+        super().__init__()
         self.name = name
         self.schema = schema
 
@@ -36,7 +36,8 @@ class JsonObject(JsonBaseWidget, QtWidgets.QGroupBox):
         include a border.
     """
     def __init__(self, name, schema, parent=None):
-        super().__init__(name, schema, parent)
+        super().__init__(name, schema=schema, parent=parent)
+        self.setTitle(self.name)
         self.vbox = QtWidgets.QVBoxLayout()
         self.vbox.setAlignment(QtCore.Qt.AlignTop)
         self.setLayout(self.vbox)
@@ -64,88 +65,7 @@ class JsonObject(JsonBaseWidget, QtWidgets.QGroupBox):
         return out
 
 
-class JsonString(QtWidgets.QWidget):
-    """
-        Widget representation of a string.
-
-        Strings are text boxes with labels for names.
-    """
-    def __init__(self, name, schema, parent=None):
-        QtWidgets.QWidget.__init__(self, parent)
-        self.name = name
-        self.schema = schema
-        hbox = QtWidgets.QHBoxLayout()
-
-        self.label = QtWidgets.QLabel(name)
-        self.edit  = QtWidgets.QLineEdit()
-
-        if "description" in schema:
-            self.label.setToolTip(schema['description'])
-
-        hbox.addWidget(self.label)
-        hbox.addWidget(self.edit)
-
-        self.setLayout(hbox)
-
-    def to_json_object(self):
-        return str(self.edit.text())
-
-
-class JsonInteger(QtWidgets.QWidget):
-    """
-        Widget representation of an integer (SpinBox)
-    """
-    def __init__(self, name, schema, parent=None):
-        QtWidgets.QWidget.__init__(self, parent)
-        self.name = name
-        self.schema = schema
-        hbox = QtWidgets.QHBoxLayout()
-
-        self.label = QtWidgets.QLabel(name)
-        self.spin  = QtWidgets.QSpinBox()
-
-        if "description" in schema:
-            self.label.setToolTip(schema['description'])
-
-        # TODO: min/max
-
-        hbox.addWidget(self.label)
-        hbox.addWidget(self.spin)
-
-        self.setLayout(hbox)
-
-    def to_json_object(self):
-        return self.spin.value()
-
-
-class JsonNumber(QtWidgets.QWidget):
-    """
-        Widget representation of a number (DoubleSpinBox)
-    """
-    def __init__(self, name, schema, parent=None):
-        QtWidgets.QWidget.__init__(self, parent)
-        self.name = name
-        self.schema = schema
-        hbox = QtWidgets.QHBoxLayout()
-
-        self.label = QtWidgets.QLabel(name)
-        self.spin  = QtWidgets.QDoubleSpinBox()
-
-        if "description" in schema:
-            self.label.setToolTip(schema['description'])
-
-        # TODO: min/max
-
-        hbox.addWidget(self.label)
-        hbox.addWidget(self.spin)
-
-        self.setLayout(hbox)
-
-    def to_json_object(self):
-        return self.spin.value()
-
-
-class JsonArray(QtWidgets.QWidget):
+class JsonArray(JsonBaseWidget, QtWidgets.QWidget):
     """
         Widget representation of an array.
 
@@ -155,9 +75,7 @@ class JsonArray(QtWidgets.QWidget):
         We include a label and button for adding types.
     """
     def __init__(self, name, schema, parent=None):
-        QtWidgets.QWidget.__init__(self, parent)
-        self.name = name
-        self.schema = schema
+        super().__init__(name, schema=schema, parent=parent)
         self.count = 0
         self.vbox = QtWidgets.QVBoxLayout()
 
@@ -195,21 +113,80 @@ class JsonArray(QtWidgets.QWidget):
                 out.append(widget.to_json_object())
         return out
 
+class JsonPrimitiveBaseWidget(JsonBaseWidget, QtWidgets.QWidget):
+    edit_widget = None
 
-class JsonBoolean(QtWidgets.QCheckBox):
+    def __init__(self, name, schema, parent=None):
+        super().__init__(name, schema=schema, parent=parent)
+        hbox = QtWidgets.QHBoxLayout()
+
+        label_text = schema.get('title', name)
+        self.label = QtWidgets.QLabel(label_text)
+        self.editor  = self.edit_widget()
+
+        if "description" in schema:
+            self.label.setToolTip(schema['description'])
+
+        hbox.addWidget(self.label)
+        hbox.addWidget(self.editor)
+
+        self.setLayout(hbox)
+
+    def to_json_object(self):
+        pass
+
+class JsonString(JsonPrimitiveBaseWidget):
+    """
+        Widget representation of a string.
+
+        Strings are text boxes with labels for names.
+    """
+    edit_widget = QtWidgets.QLineEdit
+    def __init__(self, name, schema, parent=None):
+        super().__init__(name, schema, parent)
+
+    def to_json_object(self):
+        return str(self.editor.text())
+
+
+class JsonInteger(JsonPrimitiveBaseWidget):
+    """
+        Widget representation of an integer (SpinBox)
+    """
+    edit_widget = QtWidgets.QSpinBox
+    def __init__(self, name, schema, parent=None):
+        super().__init__(name, schema, parent)
+
+        # TODO: min/max
+
+    def to_json_object(self):
+        return self.editor.value()
+
+
+class JsonNumber(JsonPrimitiveBaseWidget):
+    """
+        Widget representation of a number (DoubleSpinBox)
+    """
+    edit_widget = QtWidgets.QDoubleSpinBox
+    def __init__(self, name, schema, parent=None):
+        super().__init__(name, schema, parent)
+
+        # TODO: min/max
+
+    def to_json_object(self):
+        return self.editor.value()
+
+
+class JsonBoolean(JsonPrimitiveBaseWidget):
     """
         Widget representing a boolean (CheckBox)
     """
+    edit_widget = QtWidgets.QCheckBox
     def __init__(self, name, schema, parent=None):
-        QtWidgets.QCheckBox.__init__(self, name, parent)
-        self.name = name
-        self.schema = schema
-
-        if "description" in schema:
-            self.setToolTip(schema['description'])
+        super().__init__(name, schema, parent)
 
     def to_json_object(self):
-        return bool(self.isChecked())
+        return bool(self.editor.isChecked())
 
 
 def create_widget(name, schema, parent=None):
