@@ -26,6 +26,13 @@ class JsonBaseWidget(object):
         super().__init__()
         self.name = name
         self.schema = schema
+        if "definitions" in schema:
+            self.definitions =  schema["definitions"]
+        elif parent:
+            self.definitions = parent.definitions
+
+    def load_data(self, data):
+        pass
 
 class JsonObject(JsonBaseWidget, QtWidgets.QGroupBox):
     """
@@ -35,6 +42,7 @@ class JsonObject(JsonBaseWidget, QtWidgets.QGroupBox):
         We display these in a groupbox, which on most platforms will
         include a border.
     """
+
     def __init__(self, name, schema, parent=None):
         super().__init__(name, schema=schema, parent=parent)
         self.setTitle(self.name)
@@ -54,9 +62,13 @@ class JsonObject(JsonBaseWidget, QtWidgets.QGroupBox):
             self.vbox.addWidget(label)
         else:
             for k, v in schema['properties'].items():
-                widget = create_widget(k, v)
+                widget = create_widget(k, v, self)
                 self.vbox.addWidget(widget)
                 self.properties[k] = widget
+
+    def load_data(self, data):
+        for k, v in data.items():
+            self.properties[k].load_data(v)
 
     def to_json_object(self):
         out = {}
@@ -96,14 +108,29 @@ class JsonArray(JsonBaseWidget, QtWidgets.QWidget):
         self.vbox.addLayout(self.controls)
 
         self.setLayout(self.vbox)
+        self.items = []
 
     def click_add(self):
         # TODO: Support array for "items"
         # TODO: Support additionalItems
+        self.add_item()
+
+    def add_item(self, data=None):
         if "items" in self.schema:
+            print(self.name, self.schema['items'])
             obj = create_widget("Item #%d" % (self.count,), self.schema['items'], self)
             self.count += 1
             self.vbox.addWidget(obj)
+            self.items.append(obj)
+            if data:
+                obj.load_data(data)
+
+    def load_data(self, data):
+        for i, datum in enumerate(data):
+            if i < len(self.items):
+                self.items[i].load_data(datum)
+            else: #if i >= len(self.items):
+                self.add_item(datum)
 
     def to_json_object(self):
         out = []
@@ -132,6 +159,9 @@ class JsonPrimitiveBaseWidget(JsonBaseWidget, QtWidgets.QWidget):
 
         self.setLayout(hbox)
 
+    def load_data(self, data):
+        pass
+
     def to_json_object(self):
         pass
 
@@ -144,6 +174,9 @@ class JsonString(JsonPrimitiveBaseWidget):
     edit_widget = QtWidgets.QLineEdit
     def __init__(self, name, schema, parent=None):
         super().__init__(name, schema, parent)
+
+    def load_data(self, data):
+        self.editor.setText(data)
 
     def to_json_object(self):
         return str(self.editor.text())
@@ -159,6 +192,9 @@ class JsonInteger(JsonPrimitiveBaseWidget):
 
         # TODO: min/max
 
+    def load_data(self, data):
+        self.editor.setValue(data)
+
     def to_json_object(self):
         return self.editor.value()
 
@@ -172,6 +208,9 @@ class JsonNumber(JsonPrimitiveBaseWidget):
         super().__init__(name, schema, parent)
 
         # TODO: min/max
+
+    def load_data(self, data):
+        self.editor.setValue(data)
 
     def to_json_object(self):
         return self.editor.value()
@@ -193,20 +232,31 @@ def create_widget(name, schema, parent=None):
     """
         Create the appropriate widget for a given schema element.
     """
+    if "type" in schema:
+        schema_type = schema['type']
+    elif "$schema" in schema:
+        sub_schema = schema['$schema']
+        print("sub schema is", sub_schema, sub_schema.startswith("#"))
+        if sub_schema.startswith("#"):
+            print(parent.definitions[sub_schema[1:]])
+            schema_type = parent.definitions[sub_schema[1:]]
+
     if "type" not in schema:
         return UnsupportedSchema(name, schema, parent)
+    print(schema_type)
+        
 
-    if schema['type'] == "object":
+    if schema_type == "object":
         return JsonObject(name, schema, parent)
-    elif schema['type'] == "string":
+    elif schema_type == "string":
         return JsonString(name, schema, parent)
-    elif schema['type'] == "integer":
+    elif schema_type == "integer":
         return JsonInteger(name, schema, parent)
-    elif schema['type'] == "array":
+    elif schema_type == "array":
         return JsonArray(name, schema, parent)
-    elif schema['type'] == "number":
+    elif schema_type == "number":
         return JsonNumber(name, schema, parent)
-    elif schema['type'] == "boolean":
+    elif schema_type == "boolean":
         return JsonBoolean(name, schema, parent)
 
     # TODO: refs

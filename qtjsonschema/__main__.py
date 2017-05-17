@@ -28,8 +28,11 @@ class MainWindow(QtWidgets.QWidget):
         self.menu = QtWidgets.QMenuBar(self)
         self.file_menu = self.menu.addMenu("&File")
 
-        _action_open = QtWidgets.QAction("&Open Schema", self)
-        _action_open.triggered.connect(self._handle_open)
+        _action_open_schema = QtWidgets.QAction("&Open File", self)
+        _action_open_schema.triggered.connect(self._handle_open_schema)
+
+        _action_open_json = QtWidgets.QAction("Open &JSON Schema", self)
+        _action_open_json.triggered.connect(self._handle_open_json)
 
         _action_save = QtWidgets.QAction("&Save", self)
         _action_save.triggered.connect(self._handle_save)
@@ -37,7 +40,8 @@ class MainWindow(QtWidgets.QWidget):
         _action_quit = QtWidgets.QAction("&Close", self)
         _action_quit.triggered.connect(self._handle_quit)
 
-        self.file_menu.addAction(_action_open)
+        self.file_menu.addAction(_action_open_json)
+        self.file_menu.addAction(_action_open_schema)
         self.file_menu.addAction(_action_save)
         self.file_menu.addSeparator()
         self.file_menu.addAction(_action_quit)
@@ -70,8 +74,9 @@ class MainWindow(QtWidgets.QWidget):
 
         if "title" in _schema:
             self.setWindowTitle("%s - PyQtSchema" % _schema["title"])
-
-        self.content_region.setWidget(create_widget(_schema.get("title", "(root)"), _schema))
+        
+        self.schema_widget = create_widget(_schema.get("title", "(root)"), _schema)
+        self.content_region.setWidget(self.schema_widget)
         self.content_region.setWidgetResizable(True)
         self.schema = _schema
 
@@ -82,13 +87,18 @@ class MainWindow(QtWidgets.QWidget):
         import json
         import collections
         with open(json_file) as f:
-            json_file = json.loads(f.read(), object_pairs_hook=collections.OrderedDict)
-            print(json_file, self.schema)
+            data = json.loads(f.read(), object_pairs_hook=collections.OrderedDict)
             from jsonschema import validate
-            validate(json_file, self.schema)
+            validate(data, self.schema)
+            self.schema_widget.load_data(data)
 
+    def _handle_open_json(self):
+        # Open JSON File
+        json_file, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open Schema', filter="JSON File (*.json)")
+        if json_file:
+            self.load_json(json_file)
 
-    def _handle_open(self):
+    def _handle_open_schema(self):
         # Open JSON Schema
         schema, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open Schema', filter="JSON Schema (*.schema *.json)")
         if schema:
@@ -123,7 +133,6 @@ def json_editor(schema, json):
 
     if schema:
         main_window.process_schema(schema)
-        print(schema, json)
         if json:
             main_window.load_json(json)
 
