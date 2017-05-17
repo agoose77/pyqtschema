@@ -232,19 +232,15 @@ def create_widget(name, schema, parent=None):
     """
         Create the appropriate widget for a given schema element.
     """
+    if "$schema" in schema:
+        sub_schema = schema['$schema']
+        if sub_schema.startswith("#"):
+            schema = parent.definitions[sub_schema[1:]]
     if "type" in schema:
         schema_type = schema['type']
-    elif "$schema" in schema:
-        sub_schema = schema['$schema']
-        print("sub schema is", sub_schema, sub_schema.startswith("#"))
-        if sub_schema.startswith("#"):
-            print(parent.definitions[sub_schema[1:]])
-            schema_type = parent.definitions[sub_schema[1:]]
-
-    if "type" not in schema:
+    elif "type" not in schema:
         return UnsupportedSchema(name, schema, parent)
-    print(schema_type)
-        
+      
 
     if schema_type == "object":
         return JsonObject(name, schema, parent)
