@@ -1,9 +1,9 @@
 """
 Widget definitions for JSON schema elements.
 """
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 
-class UnsupportedSchema(QtGui.QLabel):
+class UnsupportedSchema(QtWidgets.QLabel):
     """
         Widget representation of an unsupported schema element.
 
@@ -14,25 +14,30 @@ class UnsupportedSchema(QtGui.QLabel):
         self.name = name
         self.schema = schema
         self._type = schema.get("type", schema.get("$ref", "(?)"))
-        QtGui.QLabel.__init__(self, "(Unsupported schema entry: %s, %s)" % (name, self._type), parent)
+        QtWidgets.QLabel.__init__(self, "(Unsupported schema entry: %s, %s)" % (name, self._type), parent)
         self.setStyleSheet("QLabel { font-style: italic; }")
 
     def to_json_object(self):
         return "(unsupported)"
 
-class JsonObject(QtGui.QGroupBox):
+
+class JsonBaseWidget(object):
+    def __init__(self, name, schema, parent=None):
+        super().__init__(name, parent)
+        self.name = name
+        self.schema = schema
+
+class JsonObject(JsonBaseWidget, QtWidgets.QGroupBox):
     """
-        Widget representaiton of an object.
+        Widget representation of an object.
 
         Objects have properties, each of which is a widget of its own.
         We display these in a groupbox, which on most platforms will
         include a border.
     """
     def __init__(self, name, schema, parent=None):
-        QtGui.QGroupBox.__init__(self, name, parent)
-        self.name = name
-        self.schema = schema
-        self.vbox = QtGui.QVBoxLayout()
+        super().__init__(name, schema, parent)
+        self.vbox = QtWidgets.QVBoxLayout()
         self.vbox.setAlignment(QtCore.Qt.AlignTop)
         self.setLayout(self.vbox)
         self.setFlat(False)
@@ -43,36 +48,36 @@ class JsonObject(QtGui.QGroupBox):
         self.properties = {}
 
         if "properties" not in schema:
-            label = QtGui.QLabel("Invalid object description (missing properties)", self)
+            label = QtWidgets.QLabel("Invalid object description (missing properties)", self)
             label.setStyleSheet("QLabel { color: red; }")
             self.vbox.addWidget(label)
         else:
-            for k, v in schema['properties'].iteritems():
+            for k, v in schema['properties'].items():
                 widget = create_widget(k, v)
                 self.vbox.addWidget(widget)
                 self.properties[k] = widget
 
     def to_json_object(self):
         out = {}
-        for k, v in self.properties.iteritems():
+        for k, v in self.properties.items():
             out[k] = v.to_json_object()
         return out
 
 
-class JsonString(QtGui.QWidget):
+class JsonString(QtWidgets.QWidget):
     """
         Widget representation of a string.
 
         Strings are text boxes with labels for names.
     """
     def __init__(self, name, schema, parent=None):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.name = name
         self.schema = schema
-        hbox = QtGui.QHBoxLayout()
+        hbox = QtWidgets.QHBoxLayout()
 
-        self.label = QtGui.QLabel(name)
-        self.edit  = QtGui.QLineEdit()
+        self.label = QtWidgets.QLabel(name)
+        self.edit  = QtWidgets.QLineEdit()
 
         if "description" in schema:
             self.label.setToolTip(schema['description'])
@@ -86,18 +91,18 @@ class JsonString(QtGui.QWidget):
         return str(self.edit.text())
 
 
-class JsonInteger(QtGui.QWidget):
+class JsonInteger(QtWidgets.QWidget):
     """
         Widget representation of an integer (SpinBox)
     """
     def __init__(self, name, schema, parent=None):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.name = name
         self.schema = schema
-        hbox = QtGui.QHBoxLayout()
+        hbox = QtWidgets.QHBoxLayout()
 
-        self.label = QtGui.QLabel(name)
-        self.spin  = QtGui.QSpinBox()
+        self.label = QtWidgets.QLabel(name)
+        self.spin  = QtWidgets.QSpinBox()
 
         if "description" in schema:
             self.label.setToolTip(schema['description'])
@@ -113,18 +118,18 @@ class JsonInteger(QtGui.QWidget):
         return self.spin.value()
 
 
-class JsonNumber(QtGui.QWidget):
+class JsonNumber(QtWidgets.QWidget):
     """
         Widget representation of a number (DoubleSpinBox)
     """
     def __init__(self, name, schema, parent=None):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.name = name
         self.schema = schema
-        hbox = QtGui.QHBoxLayout()
+        hbox = QtWidgets.QHBoxLayout()
 
-        self.label = QtGui.QLabel(name)
-        self.spin  = QtGui.QDoubleSpinBox()
+        self.label = QtWidgets.QLabel(name)
+        self.spin  = QtWidgets.QDoubleSpinBox()
 
         if "description" in schema:
             self.label.setToolTip(schema['description'])
@@ -140,7 +145,7 @@ class JsonNumber(QtGui.QWidget):
         return self.spin.value()
 
 
-class JsonArray(QtGui.QWidget):
+class JsonArray(QtWidgets.QWidget):
     """
         Widget representation of an array.
 
@@ -150,21 +155,21 @@ class JsonArray(QtGui.QWidget):
         We include a label and button for adding types.
     """
     def __init__(self, name, schema, parent=None):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
         self.name = name
         self.schema = schema
         self.count = 0
-        self.vbox = QtGui.QVBoxLayout()
+        self.vbox = QtWidgets.QVBoxLayout()
 
-        self.controls = QtGui.QHBoxLayout()
+        self.controls = QtWidgets.QHBoxLayout()
 
-        label = QtGui.QLabel(name, self)
+        label = QtWidgets.QLabel(name, self)
         label.setStyleSheet("QLabel { font-weight: bold; }")
 
         if "description" in schema:
             self.label.setToolTip(schema['description'])
 
-        button = QtGui.QPushButton("Append Item", self)
+        button = QtWidgets.QPushButton("Append Item", self)
         button.clicked.connect(self.click_add)
 
         self.controls.addWidget(label)
@@ -191,12 +196,12 @@ class JsonArray(QtGui.QWidget):
         return out
 
 
-class JsonBoolean(QtGui.QCheckBox):
+class JsonBoolean(QtWidgets.QCheckBox):
     """
         Widget representing a boolean (CheckBox)
     """
     def __init__(self, name, schema, parent=None):
-        QtGui.QCheckBox.__init__(self, name, parent)
+        QtWidgets.QCheckBox.__init__(self, name, parent)
         self.name = name
         self.schema = schema
 

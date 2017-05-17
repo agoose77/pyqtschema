@@ -6,14 +6,14 @@ Generate a dynamic Qt form representing a JSON Schema.
 Filling the form will generate JSON.
 """
 
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 from qtjsonschema.widgets import create_widget
 
-class MainWindow(QtGui.QWidget):
+class MainWindow(QtWidgets.QWidget):
 
     def __init__(self, parent=None):
-        QtGui.QWidget.__init__(self, parent)
+        QtWidgets.QWidget.__init__(self, parent)
 
         self.setWindowTitle("PyQtSchema")
 
@@ -24,16 +24,16 @@ class MainWindow(QtGui.QWidget):
         #  --
         #  Close
 
-        self.menu = QtGui.QMenuBar(self)
+        self.menu = QtWidgets.QMenuBar(self)
         self.file_menu = self.menu.addMenu("&File")
 
-        _action_open = QtGui.QAction("&Open Schema", self)
+        _action_open = QtWidgets.QAction("&Open Schema", self)
         _action_open.triggered.connect(self._handle_open)
 
-        _action_save = QtGui.QAction("&Save", self)
+        _action_save = QtWidgets.QAction("&Save", self)
         _action_save.triggered.connect(self._handle_save)
 
-        _action_quit = QtGui.QAction("&Close", self)
+        _action_quit = QtWidgets.QAction("&Close", self)
         _action_quit.triggered.connect(self._handle_quit)
 
         self.file_menu.addAction(_action_open)
@@ -42,14 +42,14 @@ class MainWindow(QtGui.QWidget):
         self.file_menu.addAction(_action_quit)
 
         # Scrollable region for schema form
-        self.content_region = QtGui.QScrollArea(self)
+        self.content_region = QtWidgets.QScrollArea(self)
 
-        vbox = QtGui.QVBoxLayout()
+        vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.menu)
         vbox.addWidget(self.content_region)
         vbox.setContentsMargins(0,0,0,0)
 
-        hbox = QtGui.QHBoxLayout()
+        hbox = QtWidgets.QHBoxLayout()
         hbox.setContentsMargins(0,0,0,0)
         hbox.addLayout(vbox)
 
@@ -64,6 +64,9 @@ class MainWindow(QtGui.QWidget):
         with open(schema) as f:
             _schema = json.loads(f.read(), object_pairs_hook=collections.OrderedDict)
 
+        from jsonschema import Draft4Validator
+        Draft4Validator.check_schema(_schema)
+
         if "title" in _schema:
             self.setWindowTitle("%s - PyQtSchema" % _schema["title"])
 
@@ -72,7 +75,7 @@ class MainWindow(QtGui.QWidget):
 
     def _handle_open(self):
         # Open JSON Schema
-        schema = QtGui.QFileDialog.getOpenFileName(self, 'Open Schema', filter="JSON Schema (*.schema *.json)")
+        schema, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open Schema', filter="JSON Schema (*.schema *.json)")
         if schema:
             self.process_schema(schema)
 
@@ -80,7 +83,7 @@ class MainWindow(QtGui.QWidget):
         # Save JSON output
         import json
         obj = self.content_region.widget().to_json_object()
-        outfile = QtGui.QFileDialog.getSaveFileName(self, 'Save JSON', filter="JSON (*.json)")
+        outfile, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save JSON', filter="JSON (*.json)")
         if outfile:
             with open(outfile, 'w') as f:
                 f.write(json.dumps(obj))
@@ -90,11 +93,23 @@ class MainWindow(QtGui.QWidget):
         self.close()
 
 
-if __name__ == "__main__":
-    import sys
+import click
 
-    app = QtGui.QApplication(sys.argv)
+@click.command()
+@click.option('--schema', default=None, help='Schema file to generate an editing window from.')
+def json_editor(schema):
+    import sys
+    print(sys.argv)
+
+    app = QtWidgets.QApplication(sys.argv)
     main_window = MainWindow()
     main_window.show()
 
+    if schema:
+        main_window.process_schema(schema)
+
     sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    json_editor()

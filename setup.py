@@ -15,7 +15,7 @@ def find_version(*file_paths):
     raise RuntimeError("Unable to find version string.")
 
 setup(
-    name="qtjsonschema",
+    name="qtjsonschema-pyqt5",
     version=find_version('qtjsonschema', '__init__.py'),
     description="Tool to generate Qt forms from JSON schemas.",
     long_description="""Parses a JSON-Schema and generates a Qt form based on it, which can then be saved to JSON.""",
@@ -30,13 +30,13 @@ setup(
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: University of Illinois/NCSA Open Source License',
-        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
     ],
 
-    keywords='qt json jsons-chema',
+    keywords='qt json json-schema',
 
     packages=find_packages(exclude=["contrib", "docs", "tests*"]),
-    install_requires = [],
+    install_requires = ["pyqt5", "click", "jsonschema"],
 )
 
 
