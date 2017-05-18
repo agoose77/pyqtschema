@@ -117,7 +117,6 @@ class JsonArray(JsonBaseWidget, QtWidgets.QWidget):
 
     def add_item(self, data=None):
         if "items" in self.schema:
-            print(self.name, self.schema['items'])
             obj = create_widget("Item #%d" % (self.count,), self.schema['items'], self)
             self.count += 1
             self.vbox.addWidget(obj)
