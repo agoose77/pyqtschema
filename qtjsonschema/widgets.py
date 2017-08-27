@@ -23,7 +23,7 @@ class UnsupportedSchema(QtWidgets.QLabel):
         return "(unsupported)"
 
 
-class JsonBaseWidget(object):
+class JSONBaseWidget(object):
     def __init__(self, name, schema, parent=None):
         super().__init__()
         self.name = name
@@ -39,7 +39,7 @@ class JsonBaseWidget(object):
         pass
 
 
-class JsonObject(JsonBaseWidget, QtWidgets.QGroupBox):
+class JSONObject(JSONBaseWidget, QtWidgets.QGroupBox):
     """
         Widget representation of an object.
 
@@ -82,7 +82,7 @@ class JsonObject(JsonBaseWidget, QtWidgets.QGroupBox):
         return out
 
 
-class JsonArray(JsonBaseWidget, QtWidgets.QWidget):
+class JSONArray(JSONBaseWidget, QtWidgets.QWidget):
     """
         Widget representation of an array.
 
@@ -146,7 +146,7 @@ class JsonArray(JsonBaseWidget, QtWidgets.QWidget):
         return out
 
 
-class JsonPrimitiveBaseWidget(JsonBaseWidget, QtWidgets.QWidget):
+class JSONPrimitiveBaseWidget(JSONBaseWidget, QtWidgets.QWidget):
     edit_widget = None
 
     def __init__(self, name, schema, parent=None):
@@ -172,7 +172,7 @@ class JsonPrimitiveBaseWidget(JsonBaseWidget, QtWidgets.QWidget):
         pass
 
 
-class JsonString(JsonPrimitiveBaseWidget):
+class JSONString(JSONPrimitiveBaseWidget):
     """
         Widget representation of a string.
 
@@ -190,7 +190,7 @@ class JsonString(JsonPrimitiveBaseWidget):
         return str(self.editor.text())
 
 
-class JsonInteger(JsonPrimitiveBaseWidget):
+class JSONInteger(JSONPrimitiveBaseWidget):
     """
         Widget representation of an integer (SpinBox)
     """
@@ -208,7 +208,7 @@ class JsonInteger(JsonPrimitiveBaseWidget):
         return self.editor.value()
 
 
-class JsonNumber(JsonPrimitiveBaseWidget):
+class JSONNumber(JSONPrimitiveBaseWidget):
     """
         Widget representation of a number (DoubleSpinBox)
     """
@@ -226,7 +226,7 @@ class JsonNumber(JsonPrimitiveBaseWidget):
         return self.editor.value()
 
 
-class JsonBoolean(JsonPrimitiveBaseWidget):
+class JSONBoolean(JSONPrimitiveBaseWidget):
     """
         Widget representing a boolean (CheckBox)
     """
@@ -240,12 +240,12 @@ class JsonBoolean(JsonPrimitiveBaseWidget):
 
 
 schema_type_to_widget_class = {
-    "object": JsonObject,
-    "string": JsonString,
-    "integer": JsonInteger,
-    "array": JsonArray,
-    "number": JsonNumber,
-    "boolean": JsonBoolean
+    "object": JSONObject,
+    "string": JSONString,
+    "integer": JSONInteger,
+    "array": JSONArray,
+    "number": JSONNumber,
+    "boolean": JSONBoolean
 }
 
 
