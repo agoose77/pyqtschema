@@ -1,7 +1,8 @@
 """
 Widget definitions for JSON schema elements.
 """
-from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5 import QtCore, QtWidgets
+
 
 class UnsupportedSchema(QtWidgets.QLabel):
     """
@@ -10,6 +11,7 @@ class UnsupportedSchema(QtWidgets.QLabel):
         Presents a label noting the name of the element and its type.
         If the element is a reference, the reference name is listed instead of a type.
     """
+
     def __init__(self, name, schema, parent=None):
         self.name = name
         self.schema = schema
@@ -27,12 +29,15 @@ class JsonBaseWidget(object):
         self.name = name
         self.schema = schema
         if "definitions" in schema:
-            self.definitions =  schema["definitions"]
+            self.definitions = schema["definitions"]
         elif parent:
             self.definitions = parent.definitions
+        else:
+            self.definitions = {}
 
     def load_data(self, data):
         pass
+
 
 class JsonObject(JsonBaseWidget, QtWidgets.QGroupBox):
     """
@@ -86,6 +91,7 @@ class JsonArray(JsonBaseWidget, QtWidgets.QWidget):
 
         We include a label and button for adding types.
     """
+
     def __init__(self, name, schema, parent=None):
         super().__init__(name, schema=schema, parent=parent)
         self.count = 0
@@ -97,7 +103,7 @@ class JsonArray(JsonBaseWidget, QtWidgets.QWidget):
         label.setStyleSheet("QLabel { font-weight: bold; }")
 
         if "description" in schema:
-            self.label.setToolTip(schema['description'])
+            label.setToolTip(schema['description'])
 
         button = QtWidgets.QPushButton("Append Item", self)
         button.clicked.connect(self.click_add)
@@ -128,7 +134,7 @@ class JsonArray(JsonBaseWidget, QtWidgets.QWidget):
         for i, datum in enumerate(data):
             if i < len(self.items):
                 self.items[i].load_data(datum)
-            else: #if i >= len(self.items):
+            else:  # if i >= len(self.items):
                 self.add_item(datum)
 
     def to_json_object(self):
@@ -139,6 +145,7 @@ class JsonArray(JsonBaseWidget, QtWidgets.QWidget):
                 out.append(widget.to_json_object())
         return out
 
+
 class JsonPrimitiveBaseWidget(JsonBaseWidget, QtWidgets.QWidget):
     edit_widget = None
 
@@ -148,7 +155,7 @@ class JsonPrimitiveBaseWidget(JsonBaseWidget, QtWidgets.QWidget):
 
         label_text = schema.get('title', name)
         self.label = QtWidgets.QLabel(label_text)
-        self.editor  = self.edit_widget()
+        self.editor = self.edit_widget()
 
         if "description" in schema:
             self.label.setToolTip(schema['description'])
@@ -164,6 +171,7 @@ class JsonPrimitiveBaseWidget(JsonBaseWidget, QtWidgets.QWidget):
     def to_json_object(self):
         pass
 
+
 class JsonString(JsonPrimitiveBaseWidget):
     """
         Widget representation of a string.
@@ -171,6 +179,7 @@ class JsonString(JsonPrimitiveBaseWidget):
         Strings are text boxes with labels for names.
     """
     edit_widget = QtWidgets.QLineEdit
+
     def __init__(self, name, schema, parent=None):
         super().__init__(name, schema, parent)
 
@@ -186,6 +195,7 @@ class JsonInteger(JsonPrimitiveBaseWidget):
         Widget representation of an integer (SpinBox)
     """
     edit_widget = QtWidgets.QSpinBox
+
     def __init__(self, name, schema, parent=None):
         super().__init__(name, schema, parent)
 
@@ -203,6 +213,7 @@ class JsonNumber(JsonPrimitiveBaseWidget):
         Widget representation of a number (DoubleSpinBox)
     """
     edit_widget = QtWidgets.QDoubleSpinBox
+
     def __init__(self, name, schema, parent=None):
         super().__init__(name, schema, parent)
 
@@ -220,11 +231,22 @@ class JsonBoolean(JsonPrimitiveBaseWidget):
         Widget representing a boolean (CheckBox)
     """
     edit_widget = QtWidgets.QCheckBox
+
     def __init__(self, name, schema, parent=None):
         super().__init__(name, schema, parent)
 
     def to_json_object(self):
         return bool(self.editor.isChecked())
+
+
+schema_type_to_widget_class = {
+    "object": JsonObject,
+    "string": JsonString,
+    "integer": JsonInteger,
+    "array": JsonArray,
+    "number": JsonNumber,
+    "boolean": JsonBoolean
+}
 
 
 def create_widget(name, schema, parent=None):
@@ -235,27 +257,16 @@ def create_widget(name, schema, parent=None):
         sub_schema = schema['$schema']
         if sub_schema.startswith("#"):
             schema = parent.definitions[sub_schema[1:]]
+
     if "type" in schema:
         schema_type = schema['type']
-    elif "type" not in schema:
-        return UnsupportedSchema(name, schema, parent)
-      
 
-    if schema_type == "object":
-        return JsonObject(name, schema, parent)
-    elif schema_type == "string":
-        return JsonString(name, schema, parent)
-    elif schema_type == "integer":
-        return JsonInteger(name, schema, parent)
-    elif schema_type == "array":
-        return JsonArray(name, schema, parent)
-    elif schema_type == "number":
-        return JsonNumber(name, schema, parent)
-    elif schema_type == "boolean":
-        return JsonBoolean(name, schema, parent)
+        try:
+            object_class = schema_type_to_widget_class[schema_type]
+        except KeyError:
+            object_class = UnsupportedSchema
 
-    # TODO: refs
+    else:
+        object_class = UnsupportedSchema
 
-    return UnsupportedSchema(name, schema, parent)
-
-
+    return object_class(name, schema, parent)

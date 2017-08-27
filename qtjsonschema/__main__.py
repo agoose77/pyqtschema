@@ -29,10 +29,10 @@ class MainWindow(QtWidgets.QWidget):
         self.file_menu = self.menu.addMenu("&File")
 
         _action_open_schema = QtWidgets.QAction("&Open File", self)
-        _action_open_schema.triggered.connect(self._handle_open_schema)
+        _action_open_schema.triggered.connect(self._handle_open_json)
 
         _action_open_json = QtWidgets.QAction("Open &JSON Schema", self)
-        _action_open_json.triggered.connect(self._handle_open_json)
+        _action_open_json.triggered.connect(self._handle_open_schema)
 
         _action_save = QtWidgets.QAction("&Save", self)
         _action_save.triggered.connect(self._handle_save)
@@ -74,7 +74,7 @@ class MainWindow(QtWidgets.QWidget):
 
         if "title" in _schema:
             self.setWindowTitle("%s - PyQtSchema" % _schema["title"])
-        
+
         self.schema_widget = create_widget(_schema.get("title", "(root)"), _schema)
         self.content_region.setWidget(self.schema_widget)
         self.content_region.setWidgetResizable(True)
@@ -103,6 +103,7 @@ class MainWindow(QtWidgets.QWidget):
         schema, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open Schema', filter="JSON Schema (*.schema *.json)")
         if schema:
             self.process_schema(schema)
+        print("OPENED")
 
     def _handle_save(self):
         # Save JSON output
@@ -116,6 +117,7 @@ class MainWindow(QtWidgets.QWidget):
     def _handle_quit(self):
         # TODO: Check if saved?
         self.close()
+
 
 
 import click
@@ -136,7 +138,7 @@ def json_editor(schema, json):
         if json:
             main_window.load_json(json)
 
-    sys.exit(app.exec_())
+    app.exec_()
 
 
 if __name__ == "__main__":
