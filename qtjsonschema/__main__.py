@@ -10,6 +10,8 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 from qtjsonschema.widgets import create_widget
 
+import sys
+sys.excepthook = lambda *a:print(__import__("traceback").format_exc(*a))
 class MainWindow(QtWidgets.QWidget):
     schema = None
 
@@ -60,22 +62,28 @@ class MainWindow(QtWidgets.QWidget):
 
         self.setLayout(hbox)
 
-    def process_schema(self, schema):
+    def process_schema(self, file_path):
         """
             Load a schema and create the root element.
         """
         import json
         import collections
-        with open(schema) as f:
+        from pathlib import Path
+
+        schema_path = Path(file_path).absolute()
+        with open(schema_path) as f:
             _schema = json.loads(f.read(), object_pairs_hook=collections.OrderedDict)
 
-        from jsonschema import Draft4Validator
-        Draft4Validator.check_schema(_schema)
+
+        # Manual validation so we support multiple schema versions
+        from jsonschema.validators import validator_for
+        cls = validator_for(_schema)
+        cls.check_schema(_schema)
 
         if "title" in _schema:
             self.setWindowTitle("%s - PyQtSchema" % _schema["title"])
 
-        self.schema_widget = create_widget(_schema.get("title", "(root)"), _schema)
+        self.schema_widget = create_widget(_schema.get("title", "(root)"), _schema, schema_path.as_uri())
         self.content_region.setWidget(self.schema_widget)
         self.content_region.setWidgetResizable(True)
         self.schema = _schema
@@ -103,7 +111,6 @@ class MainWindow(QtWidgets.QWidget):
         schema, _ = QtWidgets.QFileDialog.getOpenFileName(self, 'Open Schema', filter="JSON Schema (*.schema *.json)")
         if schema:
             self.process_schema(schema)
-        print("OPENED")
 
     def _handle_save(self):
         # Save JSON output
@@ -119,6 +126,8 @@ class MainWindow(QtWidgets.QWidget):
         self.close()
 
 
+
+import jsonschema
 
 import click
 
