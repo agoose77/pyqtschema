@@ -39,7 +39,7 @@ class UnsupportedSchema(QtWidgets.QLabel):
         QtWidgets.QLabel.__init__(self, "(Unsupported schema entry: %s, %s)" % (name, self._type), parent)
         self.setStyleSheet("QLabel { font-style: italic; }")
 
-    def to_json_object(self):
+    def dump_json_object(self):
         return "(unsupported)"
 
 
@@ -59,10 +59,10 @@ class JSONBaseWidget:
         else:
             self.definitions = {}
 
-    def from_json_object(self, data):
+    def load_json_object(self, data):
         raise NotImplementedError
 
-    def to_json_object(self):
+    def dump_json_object(self):
         raise NotImplementedError
 
 
@@ -102,12 +102,12 @@ class JSONObjectWidget(JSONBaseWidget, QtWidgets.QGroupBox):
 
                 # TODO pattern properties control widget
 
-    def from_json_object(self, data):
+    def load_json_object(self, data):
         for k, v in data.items():
-            self.properties[k].from_json_object(v)
+            self.properties[k].load_json_object(v)
 
-    def to_json_object(self):
-        return {k: v.to_json_object() for k, v in self.properties.items()}
+    def dump_json_object(self):
+        return {k: v.dump_json_object() for k, v in self.properties.items()}
 
 
 class JSONPrimitiveBaseWidget(JSONBaseWidget, QtWidgets.QWidget):
@@ -155,10 +155,10 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
 
             # TODO
 
-    def from_json_object(self, data):
+    def load_json_object(self, data):
         self.editor.setText(data)
 
-    def to_json_object(self):
+    def dump_json_object(self):
         return str(self.editor.text())
 
 
@@ -188,10 +188,10 @@ class JSONIntegerWidget(JSONPrimitiveBaseWidget):
 
             self.editor.setMaximum(maximum)
 
-    def from_json_object(self, data):
+    def load_json_object(self, data):
         self.editor.setValue(data)
 
-    def to_json_object(self):
+    def dump_json_object(self):
         return self.editor.value()
 
 
@@ -221,10 +221,10 @@ class JSONNumberWidget(JSONPrimitiveBaseWidget):
 
             self.editor.setMaximum(maximum)
 
-    def from_json_object(self, data):
+    def load_json_object(self, data):
         self.editor.setValue(data)
 
-    def to_json_object(self):
+    def dump_json_object(self):
         return self.editor.value()
 
 
@@ -234,7 +234,7 @@ class JSONBooleanWidget(JSONPrimitiveBaseWidget):
     """
     edit_widget = QtWidgets.QCheckBox
 
-    def to_json_object(self):
+    def dump_json_object(self):
         return bool(self.editor.isChecked())
 
 
@@ -301,17 +301,17 @@ class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
         self.items_layout.addWidget(obj)
 
         if data is not None:
-            obj.from_json_object(data)
+            obj.load_json_object(data)
 
-    def from_json_object(self, data):
+    def load_json_object(self, data):
         for i, datum in enumerate(data):
             if i < self.items_layout.count():
-                self.items_layout.itemAt(i).widget().from_json_object(datum)
+                self.items_layout.itemAt(i).widget().load_json_object(datum)
             else:
                 self.add_item(datum)
 
-    def to_json_object(self):
-        return [w.to_json_object() for w in iter_widgets(self.items_layout)]
+    def dump_json_object(self):
+        return [w.dump_json_object() for w in iter_widgets(self.items_layout)]
 
 
 schema_type_to_widget_class = {
@@ -335,10 +335,8 @@ def create_widget(name, schema, schema_uri=None):
     registry.register_for_scheme('https', http_loader)
     registry.register_for_scheme('file', file_resource_loader)
     registry.register_for_scheme(None, document_loader)
-    # TODO we give the filepath to help resolve remove refs
-    # If schema_uri is not given (e.g we operate on anon dict schema), then no scheme is present
-    ctx = Context(schema_uri or "#", registry)
 
+    ctx = Context(schema_uri or "#", registry)
     return _create_widget(name, schema, ctx, None)
 
 

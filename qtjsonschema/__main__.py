@@ -51,8 +51,32 @@ class MainWindow(QtWidgets.QWidget):
         # Scrollable region for schema form
         self.content_region = QtWidgets.QScrollArea(self)
 
+        label = QtWidgets.QLabel()
+
+        def update():
+            from jsonschema.validators import validate
+            from jsonschema.exceptions import _Error
+            if self.schema_widget is None:
+                return
+
+            try:
+                validate(self.schema_widget.dump_json_object(), self.schema)
+            except _Error:
+                label.setText("Object does not validate")
+                label.setStyleSheet("QLabel { color: red; }")
+            else:
+                label.setText("Object validates")
+                label.setStyleSheet("QLabel { color: green; }")
+
+        timer = QtCore.QTimer(self)
+        timer.setInterval(0.5)
+        timer.timeout.connect(update)
+        timer.start()
+
+
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.menu)
+        vbox.addWidget(label)
         vbox.addWidget(self.content_region)
         vbox.setContentsMargins(0,0,0,0)
 
@@ -96,9 +120,9 @@ class MainWindow(QtWidgets.QWidget):
         import collections
         with open(json_file) as f:
             data = json.loads(f.read(), object_pairs_hook=collections.OrderedDict)
-            from jsonschema import validate
-            validate(data, self.schema)
-            self.schema_widget.load_data(data)
+            # from jsonschema import validate
+            # validate(data, self.schema)
+            self.schema_widget.load_json_object(data)
 
     def _handle_open_json(self):
         # Open JSON File
@@ -115,7 +139,7 @@ class MainWindow(QtWidgets.QWidget):
     def _handle_save(self):
         # Save JSON output
         import json
-        obj = self.content_region.widget().to_json_object()
+        obj = self.content_region.widget().dump_json_object()
         outfile, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save JSON', filter="JSON (*.json)")
         if outfile:
             with open(outfile, 'w') as f:
