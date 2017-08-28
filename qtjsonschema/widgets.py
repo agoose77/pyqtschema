@@ -260,14 +260,36 @@ class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
         if "description" in schema:
             label.setToolTip(schema['description'])
 
-        button = QtWidgets.QPushButton("Append", self)
-        button.clicked.connect(self.click_add)
+        append_button = QtWidgets.QPushButton("", self)
+        icon = append_button.style().standardIcon(QtWidgets.QStyle.SP_FileIcon)
+        append_button.setIcon(icon)
+        append_button.clicked.connect(self.click_add)
+        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Maximum,
+                                           QtWidgets.QSizePolicy.Maximum)
+        append_button.setSizePolicy(size_policy)
+
+        remove_button = QtWidgets.QPushButton("", self)
+        icon = remove_button.style().standardIcon(QtWidgets.QStyle.SP_TrashIcon)
+        remove_button.setIcon(icon)
+        remove_button.clicked.connect(self.click_remove)
+        size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Maximum,
+                                            QtWidgets.QSizePolicy.Maximum)
+        remove_button.setSizePolicy(size_policy)
 
         self.controls_layout.addWidget(label)
-        self.controls_layout.addWidget(button)
+        self.controls_layout.addWidget(append_button)
+        self.controls_layout.addWidget(remove_button)
 
         self.layout.addLayout(self.controls_layout)
-        self.layout.addLayout(self.items_layout)
+
+        self.items_list = QtWidgets.QListWidget(self)
+        self.widget_stack = QtWidgets.QStackedWidget(self)
+
+        self.items_list.currentItemChanged.connect(self._current_item_changed)
+
+        self.layout.addWidget(self.items_list)
+        self.layout.addWidget(self.widget_stack)
+
         self.setLayout(self.layout)
 
         try:
@@ -290,22 +312,41 @@ class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
 
         return schema
 
+    def _current_item_changed(self, current, previous):
+        index = self.items_list.indexFromItem(current).row()
+        self.widget_stack.setCurrentIndex(index)
+
     def click_add(self):
         self.add_item()
 
+    def click_remove(self):
+        self.remove_item()
+
     def add_item(self, data=None):
-        index = self.items_layout.count()
+        index = self.items_list.count()
         schema = self._get_item_schema(index)
         obj = _create_widget("Item #{:d}".format(index), schema, self.ctx, self)
 
-        self.items_layout.addWidget(obj)
+        self.items_list.addItem(f"{index}")
+        self.widget_stack.addWidget(obj)
 
         if data is not None:
             obj.load_json_object(data)
 
+    def remove_item(self):
+        last_item_index = self.items_list.count() - 1
+        if last_item_index < 0:
+            return
+
+        self.items_list.takeItem(last_item_index)
+
+        widget = self.widget_stack.widget(last_item_index)
+        self.widget_stack.removeWidget(widget)
+        print("Removeed")
+
     def load_json_object(self, data):
         for i, datum in enumerate(data):
-            if i < self.items_layout.count():
+            if i < self.items_list.count():
                 self.items_layout.itemAt(i).widget().load_json_object(datum)
             else:
                 self.add_item(datum)
