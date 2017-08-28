@@ -14,9 +14,14 @@ from .tools import CachedURILoaderRegistry, FileResourceLoader, HTTPResourceLoad
 # oneOf, type, extends, properties, patternProperties,
 # additionalProperties
 
-def iter_widgets(layout):
+def iter_layout_widgets(layout):
     for i in range(layout.count()):
         yield layout.itemAt(i).widget()
+
+
+def iter_widgets(object):
+    for i in range(object.count()):
+        yield object.widget(i)
 
 
 class UnsupportedSchemaError(BaseException):
@@ -265,7 +270,7 @@ class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
         append_button.setIcon(icon)
         append_button.clicked.connect(self.click_add)
         size_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Maximum,
-                                           QtWidgets.QSizePolicy.Maximum)
+                                            QtWidgets.QSizePolicy.Maximum)
         append_button.setSizePolicy(size_policy)
 
         remove_button = QtWidgets.QPushButton("", self)
@@ -342,17 +347,16 @@ class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
 
         widget = self.widget_stack.widget(last_item_index)
         self.widget_stack.removeWidget(widget)
-        print("Removeed")
 
     def load_json_object(self, data):
         for i, datum in enumerate(data):
-            if i < self.items_list.count():
-                self.items_layout.itemAt(i).widget().load_json_object(datum)
+            if i < self.widget_stack.count():
+                self.widget_stack.widget(i).load_json_object(datum)
             else:
                 self.add_item(datum)
 
     def dump_json_object(self):
-        return [w.dump_json_object() for w in iter_widgets(self.items_layout)]
+        return [w.dump_json_object() for w in iter_widgets(self.widget_stack)]
 
 
 schema_type_to_widget_class = {

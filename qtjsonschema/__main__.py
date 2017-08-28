@@ -6,12 +6,16 @@ Generate a dynamic Qt form representing a JSON Schema.
 Filling the form will generate JSON.
 """
 
-from PyQt5 import QtCore, QtGui, QtWidgets
+from json import dumps
 
-from qtjsonschema.widgets import create_widget
+import click
+from PyQt5 import QtCore, QtWidgets
+from jsonschema.exceptions import _Error
+from jsonschema.validators import Draft4Validator, validate
 
-import sys
-sys.excepthook = lambda *a:print(__import__("traceback").format_exc(*a))
+from .widgets import create_widget
+
+
 class MainWindow(QtWidgets.QWidget):
     schema = None
 
@@ -50,17 +54,17 @@ class MainWindow(QtWidgets.QWidget):
 
         # Scrollable region for schema form
         self.content_region = QtWidgets.QScrollArea(self)
+        self.schema_widget = None
+        self.schema = None
 
         label = QtWidgets.QLabel()
 
         def update():
-            from jsonschema.validators import validate
-            from jsonschema.exceptions import _Error
             if self.schema_widget is None:
                 return
 
             try:
-                validate(self.schema_widget.dump_json_object(), self.schema)
+                validate(self.schema_widget.dump_json_object(), self.schema, cls=Draft4Validator)
             except _Error:
                 label.setText("Object does not validate")
                 label.setStyleSheet("QLabel { color: red; }")
@@ -69,19 +73,18 @@ class MainWindow(QtWidgets.QWidget):
                 label.setStyleSheet("QLabel { color: green; }")
 
         timer = QtCore.QTimer(self)
-        timer.setInterval(0.5)
+        timer.setInterval(100)
         timer.timeout.connect(update)
         timer.start()
-
 
         vbox = QtWidgets.QVBoxLayout()
         vbox.addWidget(self.menu)
         vbox.addWidget(label)
         vbox.addWidget(self.content_region)
-        vbox.setContentsMargins(0,0,0,0)
+        vbox.setContentsMargins(0, 0, 0, 0)
 
         hbox = QtWidgets.QHBoxLayout()
-        hbox.setContentsMargins(0,0,0,0)
+        hbox.setContentsMargins(0, 0, 0, 0)
         hbox.addLayout(vbox)
 
         self.setLayout(hbox)
@@ -98,11 +101,7 @@ class MainWindow(QtWidgets.QWidget):
         with open(schema_path) as f:
             _schema = json.loads(f.read(), object_pairs_hook=collections.OrderedDict)
 
-
-        # Manual validation so we support multiple schema versions
-        from jsonschema.validators import validator_for
-        cls = validator_for(_schema)
-        cls.check_schema(_schema)
+        Draft4Validator.check_schema(_schema)
 
         if "title" in _schema:
             self.setWindowTitle("%s - PyQtSchema" % _schema["title"])
@@ -138,22 +137,16 @@ class MainWindow(QtWidgets.QWidget):
 
     def _handle_save(self):
         # Save JSON output
-        import json
         obj = self.content_region.widget().dump_json_object()
         outfile, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save JSON', filter="JSON (*.json)")
         if outfile:
             with open(outfile, 'w') as f:
-                f.write(json.dumps(obj))
+                f.write(dumps(obj))
 
     def _handle_quit(self):
         # TODO: Check if saved?
         self.close()
 
-
-
-import jsonschema
-
-import click
 
 @click.command()
 @click.option('--schema', default=None, help='Schema file to generate an editing window from.')
@@ -164,7 +157,7 @@ def json_editor(schema, json):
     app = QtWidgets.QApplication(sys.argv)
     main_window = MainWindow()
     main_window.show()
-    main_window.resize(1000,800)
+    main_window.resize(1000, 800)
 
     if schema:
         main_window.process_schema(schema)
