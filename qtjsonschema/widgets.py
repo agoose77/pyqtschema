@@ -370,6 +370,13 @@ schema_type_to_widget_class = {
 
 
 def create_widget(name, schema, schema_uri=None):
+    """Create widget according to given JSON schema.
+    if `schema_uri` is omitted, external references may only be resolved against absolute URI `id` fields--
+    
+    :param name: widget name
+    :param schema: dict-like JSON object
+    :param schema_uri: URI corresponding to given schema object
+    """
     registry = CachedURILoaderRegistry()
 
     http_loader = HTTPResourceLoader()
