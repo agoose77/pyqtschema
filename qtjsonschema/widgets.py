@@ -3,6 +3,7 @@ Widget definitions for JSON schema elements.
 """
 
 from abc import abstractmethod
+from ast import literal_eval
 
 from PyQt5 import QtCore, QtWidgets, QtGui
 
@@ -124,17 +125,39 @@ class JSONPrimitiveBaseWidget(JSONBaseWidget, QtWidgets.QWidget):
         if "description" in schema:
             self.label.setToolTip(schema['description'])
 
-        self.editor = self.edit_widget()
+        self.primitive_widget = self.primitive_class()
 
         layout.addWidget(self.label)
-        layout.addWidget(self.editor)
+        layout.addWidget(self.primitive_widget)
 
         self.setLayout(layout)
 
     @property
     @abstractmethod
-    def edit_widget(self):
+    def primitive_class(self):
         pass
+
+
+class JSONEnumWidget(JSONPrimitiveBaseWidget):
+    """
+        Widget representation of an enumerated property.
+    """
+    primitive_class = QtWidgets.QComboBox
+
+    def __init__(self, name, schema, ctx, parent):
+        super().__init__(name, schema, ctx, parent)
+
+        items = [str(e) for e in schema['enum']]
+        self.primitive_widget.addItems(items)
+
+    def dump_json_object(self):
+        as_string = self.primitive_widget.currentText()
+        return literal_eval(as_string)
+
+    def load_json_object(self, obj):
+        as_string = str(obj)
+        index = self.primitive_widget.findText(as_string)
+        self.primitive_widget.setCurrentIndex(index)
 
 
 class JSONStringWidget(JSONPrimitiveBaseWidget):
@@ -143,7 +166,7 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
 
         Strings are text boxes with labels for names.
     """
-    edit_widget = QtWidgets.QLineEdit
+    primitive_class = QtWidgets.QLineEdit
 
     def __init__(self, name, schema, ctx, parent):
         super().__init__(name, schema, ctx, parent)
@@ -152,26 +175,26 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
         if pattern:
             expression = QtCore.QRegularExpression(pattern)
             validator = QtGui.QRegularExpressionValidator(expression)
-            self.editor.setValidator(validator)
+            self.primitive_widget.setValidator(validator)
 
         max_length = schema.get("maxLength")
         if max_length is not None:
-            self.editor.setMaxLength(max_length)
+            self.primitive_widget.setMaxLength(max_length)
 
             # TODO
 
     def load_json_object(self, data):
-        self.editor.setText(data)
+        self.primitive_widget.setText(data)
 
     def dump_json_object(self):
-        return str(self.editor.text())
+        return str(self.primitive_widget.text())
 
 
 class JSONIntegerWidget(JSONPrimitiveBaseWidget):
     """
         Widget representation of an integer (SpinBox)
     """
-    edit_widget = QtWidgets.QSpinBox
+    primitive_class = QtWidgets.QSpinBox
 
     def __init__(self, name, schema, ctx, parent):
         super().__init__(name, schema, ctx, parent)
@@ -184,27 +207,27 @@ class JSONIntegerWidget(JSONPrimitiveBaseWidget):
             if schema.get("exclusiveMinimum", False):
                 minimum += 1
 
-            self.editor.setMinimum(minimum)
+            self.primitive_widget.setMinimum(minimum)
 
         if "maximum" in schema:
             maximum = schema['maximum']
             if schema.get("exclusiveMaximum", False):
                 maximum -= 1
 
-            self.editor.setMaximum(maximum)
+            self.primitive_widget.setMaximum(maximum)
 
     def load_json_object(self, data):
-        self.editor.setValue(data)
+        self.primitive_widget.setValue(data)
 
     def dump_json_object(self):
-        return self.editor.value()
+        return self.primitive_widget.value()
 
 
 class JSONNumberWidget(JSONPrimitiveBaseWidget):
     """
         Widget representation of a number (DoubleSpinBox)
     """
-    edit_widget = QtWidgets.QDoubleSpinBox
+    primitive_class = QtWidgets.QDoubleSpinBox
 
     def __init__(self, name, schema, ctx, parent):
         super().__init__(name, schema, ctx, parent)
@@ -217,30 +240,30 @@ class JSONNumberWidget(JSONPrimitiveBaseWidget):
             if schema.get("exclusiveMinimum", False):
                 minimum += 0.01  # TODO
 
-            self.editor.setMinimum(minimum)
+            self.primitive_widget.setMinimum(minimum)
 
         if "maximum" in schema:
             maximum = schema['maximum']
             if schema.get("exclusiveMaximum", False):
                 maximum -= 0.01
 
-            self.editor.setMaximum(maximum)
+            self.primitive_widget.setMaximum(maximum)
 
     def load_json_object(self, data):
-        self.editor.setValue(data)
+        self.primitive_widget.setValue(data)
 
     def dump_json_object(self):
-        return self.editor.value()
+        return self.primitive_widget.value()
 
 
 class JSONBooleanWidget(JSONPrimitiveBaseWidget):
     """
         Widget representing a boolean (CheckBox)
     """
-    edit_widget = QtWidgets.QCheckBox
+    primitive_class = QtWidgets.QCheckBox
 
     def dump_json_object(self):
-        return bool(self.editor.isChecked())
+        return bool(self.primitive_widget.isChecked())
 
 
 class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
@@ -398,6 +421,9 @@ def _create_widget(name, schema, ctx, parent):
 
     if "$ref" in schema:
         schema = ctx.dereference(schema['$ref'])
+
+    if "enum" in schema:
+        return JSONEnumWidget(name, schema, ctx, parent)
 
     if "type" in schema:
         schema_type = schema['type']
