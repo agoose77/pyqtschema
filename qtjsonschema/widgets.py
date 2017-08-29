@@ -138,6 +138,7 @@ class JSONPrimitiveBaseWidget(JSONBaseWidget, QtWidgets.QWidget):
         pass
 
 
+
 class JSONEnumWidget(JSONPrimitiveBaseWidget):
     """
         Widget representation of an enumerated property.
@@ -147,16 +148,16 @@ class JSONEnumWidget(JSONPrimitiveBaseWidget):
     def __init__(self, name, schema, ctx, parent):
         super().__init__(name, schema, ctx, parent)
 
+        self.enum_values = schema['enum']
         items = [str(e) for e in schema['enum']]
         self.primitive_widget.addItems(items)
 
     def dump_json_object(self):
-        as_string = self.primitive_widget.currentText()
-        return literal_eval(as_string)
+        index = self.primitive_widget.currentIndex()
+        return self.enum_values[index]
 
     def load_json_object(self, obj):
-        as_string = str(obj)
-        index = self.primitive_widget.findText(as_string)
+        index = self.enum_values.index(obj)
         self.primitive_widget.setCurrentIndex(index)
 
 
