@@ -34,11 +34,11 @@ class MainWindow(QtWidgets.QWidget):
         self.menu = QtWidgets.QMenuBar(self)
         self.file_menu = self.menu.addMenu("&File")
 
-        _action_open_schema = QtWidgets.QAction("&Open File", self)
-        _action_open_schema.triggered.connect(self._handle_open_json)
+        _action_open_json = QtWidgets.QAction("&Open File", self)
+        _action_open_json.triggered.connect(self._handle_open_json)
 
-        _action_open_json = QtWidgets.QAction("Open &JSON Schema", self)
-        _action_open_json.triggered.connect(self._handle_open_schema)
+        _action_open_schema = QtWidgets.QAction("Open &JSON Schema", self)
+        _action_open_schema.triggered.connect(self._handle_open_schema)
 
         _action_save = QtWidgets.QAction("&Save", self)
         _action_save.triggered.connect(self._handle_save)
