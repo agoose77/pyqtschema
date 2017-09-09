@@ -2,7 +2,6 @@
 Widget definitions for JSON schema elements.
 """
 
-from abc import abstractmethod
 from ast import literal_eval
 
 from PyQt5 import QtCore, QtWidgets, QtGui
@@ -23,6 +22,13 @@ def iter_layout_widgets(layout):
 def iter_widgets(object):
     for i in range(object.count()):
         yield object.widget(i)
+
+
+def not_implemented_property():
+  """Property descriptor which raises NotImplementedError on __get__"""
+  def getter(self):
+    raise NotImplementedError
+  return property(getter)
 
 
 class UnsupportedSchemaError(BaseException):
@@ -132,10 +138,7 @@ class JSONPrimitiveBaseWidget(JSONBaseWidget, QtWidgets.QWidget):
 
         self.setLayout(layout)
 
-    @property
-    @abstractmethod
-    def primitive_class(self):
-        pass
+    primitive_class = not_implemented_property()
 
 
 
@@ -190,71 +193,55 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
     def dump_json_object(self):
         return str(self.primitive_widget.text())
 
+    
+class SpinBoxWidgetBase(JSONPrimitiveBaseWidget):
+    """
+        Base class for spinbox widgets
+    """
+    primitive_class = not_implemented_property()
+    step = not_implemented_property()
 
-class JSONIntegerWidget(JSONPrimitiveBaseWidget):
+    def __init__(self, name, schema, ctx, parent):
+        super().__init__(name, schema, ctx, parent)
+
+        self._set_limits(schema)
+
+    def _set_limits(self, schema):
+        if "minimum" in schema:
+            minimum = schema['minimum']
+            if schema.get("exclusiveMinimum", False):
+                minimum += self.step
+
+            self.primitive_widget.setMinimum(minimum)
+
+        if "maximum" in schema:
+            maximum = schema['maximum']
+            if schema.get("exclusiveMaximum", False):
+                maximum -= self.step
+
+            self.primitive_widget.setMaximum(maximum)
+
+    def load_json_object(self, data):
+        self.primitive_widget.setValue(data)
+
+    def dump_json_object(self):
+        return self.primitive_widget.value()
+  
+
+class JSONIntegerWidget(SpinBoxWidgetBase):
     """
         Widget representation of an integer (SpinBox)
     """
     primitive_class = QtWidgets.QSpinBox
+    step = 1
+  
 
-    def __init__(self, name, schema, ctx, parent):
-        super().__init__(name, schema, ctx, parent)
-
-        self._set_limits(schema)
-
-    def _set_limits(self, schema):
-        if "minimum" in schema:
-            minimum = schema['minimum']
-            if schema.get("exclusiveMinimum", False):
-                minimum += 1
-
-            self.primitive_widget.setMinimum(minimum)
-
-        if "maximum" in schema:
-            maximum = schema['maximum']
-            if schema.get("exclusiveMaximum", False):
-                maximum -= 1
-
-            self.primitive_widget.setMaximum(maximum)
-
-    def load_json_object(self, data):
-        self.primitive_widget.setValue(data)
-
-    def dump_json_object(self):
-        return self.primitive_widget.value()
-
-
-class JSONNumberWidget(JSONPrimitiveBaseWidget):
+class JSONNumberWidget(SpinBoxWidgetBase):
     """
         Widget representation of a number (DoubleSpinBox)
     """
     primitive_class = QtWidgets.QDoubleSpinBox
-
-    def __init__(self, name, schema, ctx, parent):
-        super().__init__(name, schema, ctx, parent)
-
-        self._set_limits(schema)
-
-    def _set_limits(self, schema):
-        if "minimum" in schema:
-            minimum = schema['minimum']
-            if schema.get("exclusiveMinimum", False):
-                minimum += 0.01  # TODO
-
-            self.primitive_widget.setMinimum(minimum)
-
-        if "maximum" in schema:
-            maximum = schema['maximum']
-            if schema.get("exclusiveMaximum", False):
-                maximum -= 0.01
-
-            self.primitive_widget.setMaximum(maximum)
-
-    def load_json_object(self, data):
-        self.primitive_widget.setValue(data)
-
-    def dump_json_object(self):
-        return self.primitive_widget.value()
+    step = 0.01
 
 
 class JSONBooleanWidget(JSONPrimitiveBaseWidget):
