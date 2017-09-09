@@ -1,4 +1,4 @@
-# PyQtJSONSchema
+# PyQtJSONSchema (qtjsonschema)
 
 PyQtJSONSchema is a library which can read a JSON schema (Draft 4) and generate a corresponding PyQt editor widget.
 
