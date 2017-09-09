@@ -22,6 +22,7 @@ Currently unsupported validation keywords:
 * `minItems`
 * `uniqueItems`
 * `format`
+* `default`
 
 Of these keywords, the following are likely to be supported soon:
 * `uniqueItems`
@@ -31,6 +32,7 @@ Of these keywords, the following are likely to be supported soon:
 * `patternProperties`
 * `additionalProperties`
 * `dependencies`
+* `default`
 
 In short, the combinators `anyOf`, `allOf`, `not`, and `oneOf` are a little more complicated with respect to a simple top-down tree generation, and will require more complicated handling.
 
