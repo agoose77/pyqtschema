@@ -91,8 +91,15 @@ class URILoaderRegistry:
         self.scheme_to_loader[scheme] = resource
 
 
-class CachedURILoaderRegistry(URILoaderRegistry):
-    load_resource_from_loader = lru_cache(1024)(URILoaderRegistry.load_resource_from_loader)
+
+def create_cached_uri_loader_registry(cache_size=1024):
+    """Create a cached URILoaderRegistry subclass and return it
+    
+    :param cache_size: size of registry cache (entries)
+    """
+    class CachedURILoaderRegistry(URILoaderRegistry):
+        load_resource_from_loader = lru_cache(1024)(URILoaderRegistry.load_resource_from_loader)
+    return CachedURILoaderRegistry
 
 
 class Reference:
