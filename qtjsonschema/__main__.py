@@ -10,8 +10,7 @@ from json import dumps
 
 import click
 from PyQt5 import QtCore, QtWidgets
-from jsonschema.exceptions import _Error
-from jsonschema.validators import Draft4Validator, validate
+from jsonschema import Draft4Validator, FormatChecker
 
 from .widgets import create_widget
 
@@ -63,11 +62,14 @@ class MainWindow(QtWidgets.QWidget):
             if self.schema_widget is None:
                 return
 
-            try:
-                validate(self.schema_widget.dump_json_object(), self.schema, cls=Draft4Validator)
-            except _Error:
+            format_checker = FormatChecker()
+            validator = Draft4Validator(self.schema, format_checker=format_checker)
+
+            for err in validator.iter_errors(self.schema_widget.dump_json_object()):
                 label.setText("Object does not validate")
                 label.setStyleSheet("QLabel { color: red; }")
+                break
+
             else:
                 label.setText("Object validates")
                 label.setStyleSheet("QLabel { color: green; }")

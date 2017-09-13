@@ -2,50 +2,15 @@
 Widget definitions for JSON schema elements.
 """
 
-import re
-from functools import partial
-from ipaddress import IPv4Address, IPv6Address, AddressValueError
-
-from PyQt5 import QtCore, QtWidgets, QtGui
-from rfc3986 import urlparse
+from PyQt5 import QtCore, QtWidgets
 
 from .tools import FileResourceLoader, HTTPResourceLoader, Context, DocumentLoader, create_cached_uri_loader_registry
-
-
-def is_valid_ip_address(cls, address) -> bool:
-    try:
-        cls(address)
-    except AddressValueError:
-        return False
-    return True
-
-
-def validate_uri(uri: str) -> bool:
-    result = urlparse(uri)
-    return result.is_valid()
-
-
-def is_valid_hostname(hostname: str) -> bool:
-    # Curteousy of https://stackoverflow.com/a/2532344
-    if len(hostname) > 255:
-        return False
-    if hostname[-1] == ".":
-        hostname = hostname[:-1]  # strip exactly one dot from the right, if present
-    allowed = re.compile("(?!-)[A-Z\d-]{1,63}(?<!-)$", re.IGNORECASE)
-    return all(allowed.match(x) for x in hostname.split("."))
-
+from .validators import ValidationFormatter, FormatValidator, LengthValidator, RegexValidator
 
 # Widgets supporting $ref
 # $ref, items, allOf, anyOf, additionalItems, dependencies,
 # oneOf, type, extends, properties, patternProperties,
 # additionalProperties
-
-FORMAT_PATTERNS = {'date-time': ...,
-                   'email': ...,
-                   'hostname': ...,
-                   'ipv4': partial(is_valid_ip_address, IPv4Address),
-                   'ipv6': partial(is_valid_ip_address, IPv6Address),
-                   'uri': validate_uri}
 
 
 def iter_layout_widgets(layout):
@@ -215,17 +180,28 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
     def __init__(self, name, schema, ctx, parent):
         super().__init__(name, schema, ctx, parent)
 
-        pattern = schema.get("pattern")
-        if pattern:
-            expression = QtCore.QRegularExpression(pattern)
-            validator = QtGui.QRegularExpressionValidator(expression)
-            self.primitive_widget.setValidator(validator)
+        self._validator = ValidationFormatter(self.primitive_widget)
+
+        if 'pattern' in schema:
+            pattern = schema["pattern"]
+            self._validator.add_validator(RegexValidator(pattern))
+
+        if 'format' in schema:
+            format = schema["format"]
+            self._validator.add_validator(FormatValidator(format))
+
+        if 'minLength' in schema:
+            min_length = schema["minLength"]
+            self._validator.add_validator(LengthValidator(minimum=min_length))
 
         max_length = schema.get("maxLength")
         if max_length is not None:
             self.primitive_widget.setMaxLength(max_length)
 
-            # TODO
+        self.primitive_widget.textChanged.connect(self._validate)
+
+    def _validate(self):
+        self._validator(self.primitive_widget.text())
 
     def load_json_object(self, data):
         self.primitive_widget.setText(data)
@@ -305,7 +281,7 @@ class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
     """
 
     def __init__(self, name, schema, ctx, parent):
-        super().__init__(name, schema, parent, ctx)
+        super().__init__(name, schema, ctx, parent)
 
         self.layout = QtWidgets.QVBoxLayout()
         self.controls_layout = QtWidgets.QHBoxLayout()
