@@ -2,11 +2,9 @@
 Widget definitions for JSON schema elements.
 """
 
-from ast import literal_eval
-
 from PyQt5 import QtCore, QtWidgets, QtGui
 
-from .tools import CachedURILoaderRegistry, FileResourceLoader, HTTPResourceLoader, Context, DocumentLoader
+from .tools import FileResourceLoader, HTTPResourceLoader, Context, DocumentLoader, create_cached_uri_loader_registry
 
 
 # Widgets supporting $ref
@@ -25,34 +23,16 @@ def iter_widgets(object):
 
 
 def not_implemented_property():
-  """Property descriptor which raises NotImplementedError on __get__"""
-  def getter(self):
-    raise NotImplementedError
-  return property(getter)
+    """Property descriptor which raises NotImplementedError on __get__"""
+
+    def getter(self):
+        raise NotImplementedError
+
+    return property(getter)
 
 
 class UnsupportedSchemaError(BaseException):
     pass
-
-
-class UnsupportedSchema(QtWidgets.QLabel):
-    """Widget representation of an unsupported schema element.
-
-    Presents a label noting the name of the element and its type.
-    If the element is a reference, the reference name is listed instead of a type.
-    """
-
-    def __init__(self, name, schema, parent):
-        self.name = name
-        self.schema = schema
-        self.parent = parent
-
-        self._type = schema.get("type", schema.get("$ref", "(?)"))
-        QtWidgets.QLabel.__init__(self, "(Unsupported schema entry: %s, %s)" % (name, self._type), parent)
-        self.setStyleSheet("QLabel { font-style: italic; }")
-
-    def dump_json_object(self):
-        return "(unsupported)"
 
 
 class JSONBaseWidget:
@@ -71,11 +51,36 @@ class JSONBaseWidget:
         else:
             self.definitions = {}
 
+    def initialise(self):
+        if 'default' in self.schema:
+            self.load_json_object(self.schema['default'])
+
     def load_json_object(self, data):
         raise NotImplementedError
 
     def dump_json_object(self):
         raise NotImplementedError
+
+
+class UnsupportedSchemaWidget(JSONBaseWidget, QtWidgets.QLabel):
+    """Widget representation of an unsupported schema element.
+
+    Presents a label noting the name of the element and its type.
+    If the element is a reference, the reference name is listed instead of a type.
+    """
+
+    def __init__(self, name, schema, ctx, parent):
+        super().__init__(name, schema, ctx, parent)
+
+        QtWidgets.QLabel.__init__(self, "(Unsupported schema entry: {}, {})"
+                                  .format(name, schema.get("type", "(?)")), parent)
+        self.setStyleSheet("QLabel { font-style: italic; }")
+
+    def load_json_object(self, value):
+        pass
+
+    def dump_json_object(self):
+        return "(unsupported)"
 
 
 class JSONObjectWidget(JSONBaseWidget, QtWidgets.QGroupBox):
@@ -141,7 +146,6 @@ class JSONPrimitiveBaseWidget(JSONBaseWidget, QtWidgets.QWidget):
     primitive_class = not_implemented_property()
 
 
-
 class JSONEnumWidget(JSONPrimitiveBaseWidget):
     """
         Widget representation of an enumerated property.
@@ -193,7 +197,7 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
     def dump_json_object(self):
         return str(self.primitive_widget.text())
 
-    
+
 class SpinBoxWidgetBase(JSONPrimitiveBaseWidget):
     """
         Base class for spinbox widgets
@@ -226,7 +230,7 @@ class SpinBoxWidgetBase(JSONPrimitiveBaseWidget):
 
     def dump_json_object(self):
         return self.primitive_widget.value()
-  
+
 
 class JSONIntegerWidget(SpinBoxWidgetBase):
     """
@@ -234,7 +238,7 @@ class JSONIntegerWidget(SpinBoxWidgetBase):
     """
     primitive_class = QtWidgets.QSpinBox
     step = 1
-  
+
 
 class JSONNumberWidget(SpinBoxWidgetBase):
     """
@@ -265,7 +269,7 @@ class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
     """
 
     def __init__(self, name, schema, ctx, parent):
-        super().__init__(name, schema, ctx, parent)
+        super().__init__(name, schema, parent, ctx)
 
         self.layout = QtWidgets.QVBoxLayout()
         self.controls_layout = QtWidgets.QHBoxLayout()
@@ -380,7 +384,7 @@ schema_type_to_widget_class = {
 }
 
 
-def create_widget(name, schema, schema_uri=None):
+def create_widget(name: str, schema: dict, schema_uri: str=None) -> JSONBaseWidget:
     """Create widget according to given JSON schema.
     if `schema_uri` is omitted, external references may only be resolved against absolute URI `id` fields--
     
@@ -388,7 +392,8 @@ def create_widget(name, schema, schema_uri=None):
     :param schema: dict-like JSON object
     :param schema_uri: URI corresponding to given schema object
     """
-    registry = CachedURILoaderRegistry()
+    registry_class = create_cached_uri_loader_registry()
+    registry = registry_class()
 
     http_loader = HTTPResourceLoader()
     file_resource_loader = FileResourceLoader()
@@ -403,27 +408,29 @@ def create_widget(name, schema, schema_uri=None):
     return _create_widget(name, schema, ctx, None)
 
 
-def _create_widget(name, schema, ctx, parent):
+def _create_widget(name: str, schema: dict, ctx: Context, parent: JSONBaseWidget) -> JSONBaseWidget:
     if "id" in schema:
         ctx = ctx.follow_uri(schema['id'])
 
-    if "$ref" in schema:
+    while "$ref" in schema:
         schema = ctx.dereference(schema['$ref'])
 
     if "enum" in schema:
-        return JSONEnumWidget(name, schema, ctx, parent)
+        widget_class = JSONEnumWidget
 
-    if "type" in schema:
+    elif "type" in schema:
         schema_type = schema['type']
-        try:
-            object_class = schema_type_to_widget_class[schema_type]
-        except KeyError:
-            pass
-        else:
-            try:
-                return object_class(name, schema, ctx, parent)
+        widget_class = schema_type_to_widget_class.get(schema_type, UnsupportedSchemaWidget)
 
-            except UnsupportedSchemaError:
-                return UnsupportedSchema(name, schema, parent)
+    else:
+        widget_class = UnsupportedSchemaWidget
 
-    return UnsupportedSchema(name, schema, parent)
+    # If instantiation fails, error
+    try:
+        widget = widget_class(name, schema, ctx, parent)
+
+    except UnsupportedSchemaError:
+        widget = UnsupportedSchemaWidget(name, schema, ctx, parent)
+
+    widget.initialise()
+    return widget
