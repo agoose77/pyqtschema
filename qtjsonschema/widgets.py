@@ -2,15 +2,51 @@
 Widget definitions for JSON schema elements.
 """
 
+import re
+from functools import partial
+from ipaddress import IPv4Address, IPv6Address, AddressValueError
+
 from PyQt5 import QtCore, QtWidgets, QtGui
+from rfc3986 import urlparse
 
 from .tools import FileResourceLoader, HTTPResourceLoader, Context, DocumentLoader, create_cached_uri_loader_registry
+
+
+def is_valid_ip_address(cls, address) -> bool:
+    try:
+        cls(address)
+    except AddressValueError:
+        return False
+    return True
+
+
+def validate_uri(uri: str) -> bool:
+    result = urlparse(uri)
+    return result.is_valid()
+
+
+def is_valid_hostname(hostname: str) -> bool:
+    # Curteousy of https://stackoverflow.com/a/2532344
+    if len(hostname) > 255:
+        return False
+    if hostname[-1] == ".":
+        hostname = hostname[:-1]  # strip exactly one dot from the right, if present
+    allowed = re.compile("(?!-)[A-Z\d-]{1,63}(?<!-)$", re.IGNORECASE)
+    return all(allowed.match(x) for x in hostname.split("."))
 
 
 # Widgets supporting $ref
 # $ref, items, allOf, anyOf, additionalItems, dependencies,
 # oneOf, type, extends, properties, patternProperties,
 # additionalProperties
+
+FORMAT_PATTERNS = {'date-time': ...,
+                   'email': ...,
+                   'hostname': ...,
+                   'ipv4': partial(is_valid_ip_address, IPv4Address),
+                   'ipv6': partial(is_valid_ip_address, IPv6Address),
+                   'uri': validate_uri}
+
 
 def iter_layout_widgets(layout):
     for i in range(layout.count()):
@@ -384,7 +420,7 @@ schema_type_to_widget_class = {
 }
 
 
-def create_widget(name: str, schema: dict, schema_uri: str=None) -> JSONBaseWidget:
+def create_widget(name: str, schema: dict, schema_uri: str = None) -> JSONBaseWidget:
     """Create widget according to given JSON schema.
     if `schema_uri` is omitted, external references may only be resolved against absolute URI `id` fields--
     
