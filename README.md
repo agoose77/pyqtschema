@@ -34,4 +34,4 @@ In short, the combinators `anyOf`, `allOf`, `not`, and `oneOf` are a little more
 
 Those validation keywords in the above todo-soon list will be implemented once custom property addition is supported
 
-Requires PyQt5 and Python >= 3.6 (f-strings)
+Requires PyQt5 and Python3

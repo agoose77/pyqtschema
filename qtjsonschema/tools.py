@@ -148,4 +148,4 @@ class Context:
         return self.registry.load_uri(reference_path)
 
     def __repr__(self):
-        return f"Context({self.scope_uri!r}, {self.registry!r})"
+        return "Context({!r}, {!r})".format(self.scope_uri, self.registry)

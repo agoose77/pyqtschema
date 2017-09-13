@@ -190,6 +190,13 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
             format = schema["format"]
             self._validator.add_validator(FormatValidator(format))
 
+            if format == 'uri':
+                dialogue_button = QtWidgets.QPushButton()
+                icon = dialogue_button.style().standardIcon(QtWidgets.QStyle.SP_FileLinkIcon)
+                dialogue_button.setIcon(icon)
+                dialogue_button.clicked.connect(self._load_uri_from_file)
+                self.layout().addWidget(dialogue_button)
+
         if 'minLength' in schema:
             min_length = schema["minLength"]
             self._validator.add_validator(LengthValidator(minimum=min_length))
@@ -199,6 +206,14 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
             self.primitive_widget.setMaxLength(max_length)
 
         self.primitive_widget.textChanged.connect(self._validate)
+
+    def _load_uri_from_file(self):
+        url, filter = QtWidgets.QFileDialog.getOpenFileUrl(self, 'Open URL')
+        if url.isEmpty():
+            return
+
+        self.primitive_widget.setText(url.toString())
+
 
     def _validate(self):
         self._validator(self.primitive_widget.text())
@@ -267,7 +282,10 @@ class JSONBooleanWidget(JSONPrimitiveBaseWidget):
     primitive_class = QtWidgets.QCheckBox
 
     def dump_json_object(self):
-        return bool(self.primitive_widget.isChecked())
+        return self.primitive_widget.isChecked()
+
+    def load_json_object(self, data):
+        self.primitive_widget.setChecked(data)
 
 
 class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
@@ -359,7 +377,7 @@ class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
         schema = self._get_item_schema(index)
         obj = _create_widget("Item #{:d}".format(index), schema, self.ctx, self)
 
-        self.items_list.addItem(f"{index}")
+        self.items_list.addItem("# {}".format(index))
         self.widget_stack.addWidget(obj)
 
         if data is not None:
