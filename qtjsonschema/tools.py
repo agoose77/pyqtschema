@@ -1,17 +1,17 @@
 from abc import ABC, abstractmethod
 from functools import lru_cache
 from json import load as load_json
+from platform import system
 
 import requests
 from uritools import uricompose, urisplit, urijoin
-from platform import system
 
 
 class ResourceLoader(ABC):
     """Abstract base class for a resource loader, which accepts a URI and returns a JSON object"""
 
     @abstractmethod
-    def load_resource(self, uri):
+    def load_resource(self, uri: str) -> dict:
         """Return JSON object associated with URI
         
         :param uri: URI string
@@ -22,14 +22,14 @@ class ResourceLoader(ABC):
 class HTTPResourceLoader(ResourceLoader):
     """ResourceLoader corresponding to a remote JSON file served over http."""
 
-    def load_resource(self, uri):
+    def load_resource(self, uri: str) -> dict:
         return requests.get(uri).json()
 
 
 class FileResourceLoader(ResourceLoader):
     """ResourceLoader corresponding to a local JSON file."""
 
-    def load_resource(self, uri):
+    def load_resource(self, uri: str) -> dict:
         result = urisplit(uri)
 
         if result.authority:
@@ -37,8 +37,8 @@ class FileResourceLoader(ResourceLoader):
 
         path = result.path
 
+        # File URIs either include the authority component, or an additional forward slash (which we strip from path)
         if system() == 'Windows':
-            # File URIs either include the authority component, or an additional forward slash (which we strip from path)
             path = path[1:]
 
         with open(path) as f:
@@ -51,11 +51,11 @@ class DocumentLoader(ResourceLoader):
     Used to facilitate internal references when references are not resolved with base uri 
     """
 
-    def __init__(self, document, location):
+    def __init__(self, document: dict, location: str):
         self.location = location
         self.document = document
 
-    def load_resource(self, uri):
+    def load_resource(self, uri: str) -> dict:
         if uri != self.location:
             raise ValueError("Cannot retrieve external documents")
         return self.document
@@ -67,16 +67,16 @@ class URILoaderRegistry:
     def __init__(self):
         self.scheme_to_loader = {}
 
-    def load_resource_from_loader(self, loader, uri):
+    def load_resource_from_loader(self, loader: ResourceLoader, uri: str) -> dict:
         """Return JSON object returned by loader for given URI
         
         :param loader: ResourceLoader object
         :param uri: URI string
         """
-        print(f"Loading resource {uri} with {loader}")
+        print("Loading resource {} with {}".format(uri, loader))
         return loader.load_resource(uri)
 
-    def load_uri(self, uri):
+    def load_uri(self, uri: str) -> dict:
         """Return the JSON object associated with given URI
         
         :param uri: URI string
@@ -94,9 +94,8 @@ class URILoaderRegistry:
 
         return resource
 
-    def register_for_scheme(self, scheme, resource):
-        self.scheme_to_loader[scheme] = resource
-
+    def register_for_scheme(self, scheme: str, loader):
+        self.scheme_to_loader[scheme] = loader
 
 
 def create_cached_uri_loader_registry(cache_size=1024):
@@ -104,16 +103,18 @@ def create_cached_uri_loader_registry(cache_size=1024):
     
     :param cache_size: size of registry cache (entries)
     """
+
     class CachedURILoaderRegistry(URILoaderRegistry):
         load_resource_from_loader = lru_cache(1024)(URILoaderRegistry.load_resource_from_loader)
+
     return CachedURILoaderRegistry
 
 
 class Reference:
-    def __init__(self, uri):
+    def __init__(self, uri: str):
         self.elements = [e.replace('~1', '/').replace('~0', '~') for e in uri.split('/')]
 
-    def extract(self, obj):
+    def extract(self, obj: dict):
         """Return JSON object associated with this reference URI
         
         :param obj: dict-like JSON object
@@ -125,11 +126,12 @@ class Reference:
 
 class Context:
     """Object describing JSON scope context for dereferencing '$ref' references whilst respecting 'id' fields"""
-    def __init__(self, scope_uri, registry):
+
+    def __init__(self, scope_uri: str, registry: URILoaderRegistry):
         self.scope_uri = scope_uri
         self.registry = registry
 
-    def follow_uri(self, uri):
+    def follow_uri(self, uri: str) -> 'Context':
         """Return new Context corresponding to scope after following uri
         
         :param uri: URI string
@@ -137,7 +139,7 @@ class Context:
         new_uri = urijoin(self.scope_uri, uri)
         return self.__class__(new_uri, self.registry)
 
-    def dereference(self, uri):
+    def dereference(self, uri: str) -> dict:
         """Return JSON object corresponding to resolved URI reference
         
         :param uri: URI string
