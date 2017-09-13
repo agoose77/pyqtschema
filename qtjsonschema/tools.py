@@ -4,6 +4,7 @@ from json import load as load_json
 
 import requests
 from uritools import uricompose, urisplit, urijoin
+from platform import system
 
 
 class ResourceLoader(ABC):
@@ -30,11 +31,16 @@ class FileResourceLoader(ResourceLoader):
 
     def load_resource(self, uri):
         result = urisplit(uri)
+
         if result.authority:
             raise ValueError("Network paths unsupported")
 
-        # File URIs either include the authority component, or an additional forward slash (which we strip from path)
-        path = result.path[1:]
+        path = result.path
+
+        if system() == 'Windows':
+            # File URIs either include the authority component, or an additional forward slash (which we strip from path)
+            path = path[1:]
+
         with open(path) as f:
             return load_json(f)
 
@@ -76,6 +82,7 @@ class URILoaderRegistry:
         :param uri: URI string
         """
         result = urisplit(uri)
+
         location = uricompose(result.scheme, result.authority, result.path)
         loader = self.scheme_to_loader[result.scheme]
         resource = self.load_resource_from_loader(loader, location)
