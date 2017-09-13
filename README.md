@@ -21,13 +21,11 @@ Currently unsupported validation keywords:
 * `maxItems`
 * `minItems`
 * `uniqueItems`
-* `format`
 
 Of these keywords, the following are likely to be supported soon:
 * `uniqueItems`
 * `maxItems`
 * `minItems`
-* `format`
 * `patternProperties`
 * `additionalProperties`
 * `dependencies`

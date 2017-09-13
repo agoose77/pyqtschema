@@ -21,14 +21,7 @@ class MainWindow(QtWidgets.QWidget):
     def __init__(self, parent=None):
         QtWidgets.QWidget.__init__(self, parent)
 
-        self.setWindowTitle("PyQtSchema")
-
-        # Menu bar
-        # File
-        #  Open
-        #  Save
-        #  --
-        #  Close
+        self.setWindowTitle("PyQt JSON Schema Editor")
 
         self.menu = QtWidgets.QMenuBar(self)
         self.file_menu = self.menu.addMenu("&File")
@@ -65,10 +58,13 @@ class MainWindow(QtWidgets.QWidget):
             format_checker = FormatChecker()
             validator = Draft4Validator(self.schema, format_checker=format_checker)
 
-            for err in validator.iter_errors(self.schema_widget.dump_json_object()):
-                label.setText("Object does not validate")
+            errors = [err for err in validator.iter_errors(self.schema_widget.dump_json_object())]
+            if errors:
+                error = errors[0]
+                error_string = ("{} errors" if len(errors) > 1 else "{} error").format(len(errors))
+                label.setText("{}.\nFirst error in {}:\n{}".format(error_string, '#/' + '/'.join(error.schema_path),
+                                                                   error.message))
                 label.setStyleSheet("QLabel { color: red; }")
-                break
 
             else:
                 label.setText("Object validates")
