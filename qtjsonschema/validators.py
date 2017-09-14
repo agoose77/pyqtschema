@@ -48,15 +48,20 @@ class ValidationFormatter:
     VALID_COLOUR = '#c4df9b'
     INVALID_COLOUR = '#f6989d'
 
-    def __init__(self, widget):
+    def __init__(self, widget, require_validator=True):
         self._validators = []
         self._widget = widget
         self._default_tooltip = widget.toolTip()
+        self._require_validator = require_validator
 
     def add_validator(self, validator):
         self._validators.append(validator)
 
     def __call__(self, value):
+        # Don't perform validation if no validators
+        if not self._validators and self._require_validator:
+            return
+
         color_string = self.VALID_COLOUR
         tooltip = self._default_tooltip
 
