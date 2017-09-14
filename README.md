@@ -23,9 +23,6 @@ Currently unsupported validation keywords:
 * `uniqueItems`
 
 Of these keywords, the following are likely to be supported soon:
-* `uniqueItems`
-* `maxItems`
-* `minItems`
 * `patternProperties`
 * `additionalProperties`
 * `dependencies`

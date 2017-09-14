@@ -2,10 +2,11 @@
 Widget definitions for JSON schema elements.
 """
 
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 
 from .tools import FileResourceLoader, HTTPResourceLoader, Context, DocumentLoader, create_cached_uri_loader_registry
 from .validators import ValidationFormatter, FormatValidator, LengthValidator, RegexValidator
+
 
 # Widgets supporting $ref
 # $ref, items, allOf, anyOf, additionalItems, dependencies,
@@ -32,6 +33,56 @@ def not_implemented_property():
     return property(getter)
 
 
+class QColorButton(QtWidgets.QPushButton):
+    '''
+    Custom Qt Widget to show a chosen color.
+
+    Left-clicking the button shows the color-chooser, while
+    right-clicking resets the color to None (no-color).
+    '''
+
+    colorChanged = QtCore.pyqtSignal()
+
+    def __init__(self, *args, **kwargs):
+        super(QColorButton, self).__init__(*args, **kwargs)
+
+        self._color = None
+        self.pressed.connect(self.onColorPicker)
+
+    def setColor(self, color):
+        if color != self._color:
+            self._color = color
+            self.colorChanged.emit()
+
+        if self._color:
+            self.setStyleSheet("background-color: %s;" % self._color)
+        else:
+            self.setStyleSheet("")
+
+    def color(self):
+        return self._color
+
+    def onColorPicker(self):
+        '''
+        Show color-picker dialog to select color.
+
+        Qt will use the native dialog by default.
+
+        '''
+        dlg = QtWidgets.QColorDialog(self)
+        if self._color:
+            dlg.setCurrentColor(QtGui.QColor(self._color))
+
+        if dlg.exec_():
+            self.setColor(dlg.currentColor().name())
+
+    def mousePressEvent(self, e):
+        if e.button() == QtCore.Qt.RightButton:
+            self.setColor(None)
+
+        return super(QColorButton, self).mousePressEvent(e)
+
+
 class UnsupportedSchemaError(BaseException):
     pass
 
@@ -51,6 +102,10 @@ class JSONBaseWidget:
             self.definitions = parent.definitions
         else:
             self.definitions = {}
+
+    @classmethod
+    def supports_schema(cls, schema):
+        raise NotImplementedError
 
     def initialise(self):
         if 'default' in self.schema:
@@ -76,6 +131,10 @@ class UnsupportedSchemaWidget(JSONBaseWidget, QtWidgets.QLabel):
         QtWidgets.QLabel.__init__(self, "(Unsupported schema entry: {}, {})"
                                   .format(name, schema.get("type", "(?)")), parent)
         self.setStyleSheet("QLabel { font-style: italic; }")
+
+    @classmethod
+    def supports_schema(cls, schema):
+        return True
 
     def load_json_object(self, value):
         pass
@@ -120,6 +179,10 @@ class JSONObjectWidget(JSONBaseWidget, QtWidgets.QGroupBox):
 
                 # TODO pattern properties control widget
 
+    @classmethod
+    def supports_schema(cls, schema):
+        return schema.get("type") == "object"
+
     def load_json_object(self, data):
         for k, v in data.items():
             self.properties[k].load_json_object(v)
@@ -137,10 +200,10 @@ class JSONPrimitiveBaseWidget(JSONBaseWidget, QtWidgets.QWidget):
         if "description" in schema:
             self.label.setToolTip(schema['description'])
 
-        self.primitive_widget = self.primitive_class()
+        self._primitive_widget = self.primitive_class()
 
         layout.addWidget(self.label)
-        layout.addWidget(self.primitive_widget)
+        layout.addWidget(self._primitive_widget)
 
         self.setLayout(layout)
 
@@ -156,17 +219,38 @@ class JSONEnumWidget(JSONPrimitiveBaseWidget):
     def __init__(self, name, schema, ctx, parent):
         super().__init__(name, schema, ctx, parent)
 
-        self.enum_values = schema['enum']
-        items = [str(e) for e in schema['enum']]
-        self.primitive_widget.addItems(items)
+        self._enum_values = schema['enum']
+        self._primitive_widget.addItems([str(e) for e in schema['enum']])
+
+    @classmethod
+    def supports_schema(cls, schema):
+        return "enum" in schema
 
     def dump_json_object(self):
-        index = self.primitive_widget.currentIndex()
-        return self.enum_values[index]
+        index = self._primitive_widget.currentIndex()
+        return self._enum_values[index]
 
     def load_json_object(self, obj):
-        index = self.enum_values.index(obj)
-        self.primitive_widget.setCurrentIndex(index)
+        index = self._enum_values.index(obj)
+        self._primitive_widget.setCurrentIndex(index)
+
+
+class JSONColorStringWidget(JSONPrimitiveBaseWidget):
+    """
+        Widget representation of a string with the 'color' format.
+    """
+    primitive_class = QColorButton
+
+    @classmethod
+    def supports_schema(cls, schema):
+        return (schema.get('type') == 'string' and
+                schema.get('format') == 'color')
+
+    def dump_json_object(self):
+        return self._primitive_widget.color()
+
+    def load_json_object(self, data):
+        self._primitive_widget.setColor(data)
 
 
 class JSONStringWidget(JSONPrimitiveBaseWidget):
@@ -180,7 +264,7 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
     def __init__(self, name, schema, ctx, parent):
         super().__init__(name, schema, ctx, parent)
 
-        self._validator = ValidationFormatter(self.primitive_widget)
+        self._validator = ValidationFormatter(self._primitive_widget)
 
         if 'pattern' in schema:
             pattern = schema["pattern"]
@@ -203,26 +287,29 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
 
         max_length = schema.get("maxLength")
         if max_length is not None:
-            self.primitive_widget.setMaxLength(max_length)
+            self._primitive_widget.setMaxLength(max_length)
 
-        self.primitive_widget.textChanged.connect(self._validate)
+        self._primitive_widget.textChanged.connect(self._validate_text)
 
     def _load_uri_from_file(self):
         url, filter = QtWidgets.QFileDialog.getOpenFileUrl(self, 'Open URL')
         if url.isEmpty():
             return
 
-        self.primitive_widget.setText(url.toString())
+        self._primitive_widget.setText(url.toString())
 
+    def _validate_text(self):
+        self._validator(self._primitive_widget.text())
 
-    def _validate(self):
-        self._validator(self.primitive_widget.text())
+    @classmethod
+    def supports_schema(cls, schema):
+        return schema.get('type') == 'string'
 
     def load_json_object(self, data):
-        self.primitive_widget.setText(data)
+        self._primitive_widget.setText(data)
 
     def dump_json_object(self):
-        return str(self.primitive_widget.text())
+        return str(self._primitive_widget.text())
 
 
 class SpinBoxWidgetBase(JSONPrimitiveBaseWidget):
@@ -243,20 +330,20 @@ class SpinBoxWidgetBase(JSONPrimitiveBaseWidget):
             if schema.get("exclusiveMinimum", False):
                 minimum += self.step
 
-            self.primitive_widget.setMinimum(minimum)
+            self._primitive_widget.setMinimum(minimum)
 
         if "maximum" in schema:
             maximum = schema['maximum']
             if schema.get("exclusiveMaximum", False):
                 maximum -= self.step
 
-            self.primitive_widget.setMaximum(maximum)
+            self._primitive_widget.setMaximum(maximum)
 
     def load_json_object(self, data):
-        self.primitive_widget.setValue(data)
+        self._primitive_widget.setValue(data)
 
     def dump_json_object(self):
-        return self.primitive_widget.value()
+        return self._primitive_widget.value()
 
 
 class JSONIntegerWidget(SpinBoxWidgetBase):
@@ -266,6 +353,10 @@ class JSONIntegerWidget(SpinBoxWidgetBase):
     primitive_class = QtWidgets.QSpinBox
     step = 1
 
+    @classmethod
+    def supports_schema(cls, schema):
+        return schema.get('type') == 'integer'
+
 
 class JSONNumberWidget(SpinBoxWidgetBase):
     """
@@ -274,6 +365,10 @@ class JSONNumberWidget(SpinBoxWidgetBase):
     primitive_class = QtWidgets.QDoubleSpinBox
     step = 0.01
 
+    @classmethod
+    def supports_schema(cls, schema):
+        return schema.get('type') == 'number'
+
 
 class JSONBooleanWidget(JSONPrimitiveBaseWidget):
     """
@@ -281,11 +376,15 @@ class JSONBooleanWidget(JSONPrimitiveBaseWidget):
     """
     primitive_class = QtWidgets.QCheckBox
 
+    @classmethod
+    def supports_schema(cls, schema):
+        return schema.get('type') == 'boolean'
+
     def dump_json_object(self):
-        return self.primitive_widget.isChecked()
+        return self._primitive_widget.isChecked()
 
     def load_json_object(self, data):
-        self.primitive_widget.setChecked(data)
+        self._primitive_widget.setChecked(data)
 
 
 class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
@@ -349,6 +448,10 @@ class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
 
         self.additional_item_schema = schema.get("additionalItems")
 
+    @classmethod
+    def supports_schema(cls, schema):
+        return schema.get('type') == 'array'
+
     def _get_item_schema(self, index):
         if isinstance(self.items_schema, list):
             try:
@@ -404,14 +507,16 @@ class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
         return [w.dump_json_object() for w in iter_widgets(self.widget_stack)]
 
 
-schema_type_to_widget_class = {
-    "object": JSONObjectWidget,
-    "string": JSONStringWidget,
-    "integer": JSONIntegerWidget,
-    "array": JSONArrayWidget,
-    "number": JSONNumberWidget,
-    "boolean": JSONBooleanWidget
-}
+supported_widgets = (
+    JSONObjectWidget,
+    JSONEnumWidget,
+    JSONIntegerWidget,
+    JSONNumberWidget,
+    JSONBooleanWidget,
+    JSONArrayWidget,
+    JSONColorStringWidget,
+    JSONStringWidget,
+)
 
 
 def create_widget(name: str, schema: dict, schema_uri: str = None) -> JSONBaseWidget:
@@ -445,20 +550,12 @@ def _create_widget(name: str, schema: dict, ctx: Context, parent: JSONBaseWidget
     while "$ref" in schema:
         schema = ctx.dereference(schema['$ref'])
 
-    if "enum" in schema:
-        widget_class = JSONEnumWidget
-
-    elif "type" in schema:
-        schema_type = schema['type']
-        widget_class = schema_type_to_widget_class.get(schema_type, UnsupportedSchemaWidget)
-
-    else:
-        widget_class = UnsupportedSchemaWidget
+    widget_class = next((c for c in supported_widgets if c.supports_schema(schema)),
+                        UnsupportedSchemaWidget)
 
     # If instantiation fails, error
     try:
         widget = widget_class(name, schema, ctx, parent)
-
     except UnsupportedSchemaError:
         widget = UnsupportedSchemaWidget(name, schema, ctx, parent)
 

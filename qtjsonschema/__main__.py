@@ -139,7 +139,7 @@ class MainWindow(QtWidgets.QWidget):
         outfile, _ = QtWidgets.QFileDialog.getSaveFileName(self, 'Save JSON', filter="JSON (*.json)")
         if outfile:
             with open(outfile, 'w') as f:
-                f.write(dumps(obj))
+                f.write(dumps(obj, sort_keys=True, indent=4))
 
     def _handle_quit(self):
         # TODO: Check if saved?
