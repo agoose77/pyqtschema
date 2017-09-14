@@ -176,6 +176,8 @@ class JSONObjectWidget(JSONBaseWidget, QtWidgets.QGroupBox):
 class JSONPrimitiveBaseWidget(JSONBaseWidget, QtWidgets.QWidget):
     """Base class for JSON serialising widgets which have a single input widget"""
 
+    PRIMITIVE_CLASS = not_implemented_property()
+
     def __init__(self, name: str, schema: dict, ctx: Context, parent: JSONBaseWidget):
         super().__init__(name, schema, ctx, parent)
         layout = QtWidgets.QHBoxLayout()
@@ -184,20 +186,20 @@ class JSONPrimitiveBaseWidget(JSONBaseWidget, QtWidgets.QWidget):
         if "description" in schema:
             self.label.setToolTip(schema['description'])
 
-        self._primitive_widget = self.primitive_class()
+        self._primitive_widget = self._create_primitive_widget()
 
         layout.addWidget(self.label)
         layout.addWidget(self._primitive_widget)
 
         self.setLayout(layout)
 
-    primitive_class = not_implemented_property()
-
+    def _create_primitive_widget(self):
+        return self.PRIMITIVE_CLASS(self)
 
 class JSONEnumWidget(JSONPrimitiveBaseWidget):
     """Widget representation of an enumerated property."""
-    
-    primitive_class = QtWidgets.QComboBox
+
+    PRIMITIVE_CLASS = QtWidgets.QComboBox
 
     def __init__(self, name: str, schema: dict, ctx: Context, parent: JSONBaseWidget):
         super().__init__(name, schema, ctx, parent)
@@ -221,7 +223,7 @@ class JSONEnumWidget(JSONPrimitiveBaseWidget):
 class JSONColorStringWidget(JSONPrimitiveBaseWidget):
     """Widget representation of a string with the 'color' format keyword."""
 
-    primitive_class = QColorButton
+    PRIMITIVE_CLASS = QColorButton
 
     @classmethod
     def supports_schema(cls, schema: dict) -> bool:
@@ -235,13 +237,34 @@ class JSONColorStringWidget(JSONPrimitiveBaseWidget):
         self._primitive_widget.setColor(data)
 
 
+class JSONDateTimeStringWidget(JSONPrimitiveBaseWidget):
+    def _create_primitive_widget(self):
+        widget = QtWidgets.QDateTimeEdit()
+        widget.setCalendarPopup(True)
+        return widget
+
+    @classmethod
+    def supports_schema(cls, schema: dict) -> bool:
+        return (schema.get('type') == 'string' and
+                schema.get('format') == 'date-time')
+
+    def dump_json_object(self) -> str:
+        date_time = self._primitive_widget.dateTime()
+        return date_time.toString("yyyy-MM-ddThh:mm:ssZ")
+
+    def load_json_object(self, data: str):
+        date_time = QtCore.QDateTime.fromString(data, "yyyy-MM-ddThh:mm:ssZ")
+        self._primitive_widget.setDateTime(date_time)
+
+
+
 class JSONStringWidget(JSONPrimitiveBaseWidget):
     """Widget representation of a string.
 
     Strings are text boxes with labels for names.
     """
 
-    primitive_class = QtWidgets.QLineEdit
+    PRIMITIVE_CLASS = QtWidgets.QLineEdit
 
     def __init__(self, name: str, schema: dict, ctx: Context, parent: JSONBaseWidget):
         super().__init__(name, schema, ctx, parent)
@@ -297,7 +320,7 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
 class SpinBoxWidgetBase(JSONPrimitiveBaseWidget):
     """Base class for spinbox JSON serialising widgets."""
 
-    primitive_class = not_implemented_property()
+    PRIMITIVE_CLASS = not_implemented_property()
     step = not_implemented_property()
 
     def __init__(self, name: str, schema: dict, ctx: Context, parent: JSONBaseWidget):
@@ -330,7 +353,7 @@ class SpinBoxWidgetBase(JSONPrimitiveBaseWidget):
 class JSONIntegerWidget(SpinBoxWidgetBase):
     """Widget representation of an integer (SpinBox)."""
 
-    primitive_class = QtWidgets.QSpinBox
+    PRIMITIVE_CLASS = QtWidgets.QSpinBox
     step = 1
 
     @classmethod
@@ -341,7 +364,7 @@ class JSONIntegerWidget(SpinBoxWidgetBase):
 class JSONNumberWidget(SpinBoxWidgetBase):
     """Widget representation of a number (DoubleSpinBox)."""
 
-    primitive_class = QtWidgets.QDoubleSpinBox
+    PRIMITIVE_CLASS = QtWidgets.QDoubleSpinBox
     step = 0.01
 
     @classmethod
@@ -352,7 +375,7 @@ class JSONNumberWidget(SpinBoxWidgetBase):
 class JSONBooleanWidget(JSONPrimitiveBaseWidget):
     """Widget representing a boolean (CheckBox)."""
 
-    primitive_class = QtWidgets.QCheckBox
+    PRIMITIVE_CLASS = QtWidgets.QCheckBox
 
     @classmethod
     def supports_schema(cls, schema):
@@ -488,6 +511,7 @@ supported_widgets = (
     JSONNumberWidget,
     JSONBooleanWidget,
     JSONArrayWidget,
+    JSONDateTimeStringWidget,
     JSONColorStringWidget,
     JSONStringWidget,
 )
