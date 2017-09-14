@@ -238,6 +238,7 @@ class JSONColorStringWidget(JSONPrimitiveBaseWidget):
 
 
 class JSONDateTimeStringWidget(JSONPrimitiveBaseWidget):
+    """Widget representation of a string with the 'date-time' format keyword."""
     def _create_primitive_widget(self):
         widget = QtWidgets.QDateTimeEdit()
         widget.setCalendarPopup(True)
