@@ -4,6 +4,7 @@ Widget definitions for JSON schema elements.
 
 from PyQt5 import QtCore, QtWidgets, QtGui
 
+from .errors import UnsupportedSchemaError
 from .tools import FileResourceLoader, HTTPResourceLoader, Context, DocumentLoader, create_cached_uri_loader_registry
 from .validators import ValidationFormatter, FormatValidator, LengthValidator, RegexValidator
 
@@ -34,12 +35,10 @@ def not_implemented_property():
 
 
 class QColorButton(QtWidgets.QPushButton):
-    '''
-    Custom Qt Widget to show a chosen color.
+    """Color picker widget QPushButton subclass.
 
-    Left-clicking the button shows the color-chooser, while
-    right-clicking resets the color to None (no-color).
-    '''
+    Implementation derived from https://martinfitzpatrick.name/article/qcolorbutton-a-color-selector-tool-for-pyqt/
+    """
 
     colorChanged = QtCore.pyqtSignal()
 
@@ -48,6 +47,9 @@ class QColorButton(QtWidgets.QPushButton):
 
         self._color = None
         self.pressed.connect(self.onColorPicker)
+
+    def color(self):
+        return self._color
 
     def setColor(self, color):
         if color != self._color:
@@ -59,16 +61,7 @@ class QColorButton(QtWidgets.QPushButton):
         else:
             self.setStyleSheet("")
 
-    def color(self):
-        return self._color
-
     def onColorPicker(self):
-        '''
-        Show color-picker dialog to select color.
-
-        Qt will use the native dialog by default.
-
-        '''
         dlg = QtWidgets.QColorDialog(self)
         if self._color:
             dlg.setCurrentColor(QtGui.QColor(self._color))
@@ -76,19 +69,17 @@ class QColorButton(QtWidgets.QPushButton):
         if dlg.exec_():
             self.setColor(dlg.currentColor().name())
 
-    def mousePressEvent(self, e):
-        if e.button() == QtCore.Qt.RightButton:
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.RightButton:
             self.setColor(None)
 
-        return super(QColorButton, self).mousePressEvent(e)
-
-
-class UnsupportedSchemaError(BaseException):
-    pass
+        return super(QColorButton, self).mousePressEvent(event)
 
 
 class JSONBaseWidget:
-    def __init__(self, name, schema, ctx, parent):
+    """Base class for JSON handling widgets"""
+
+    def __init__(self, name: str, schema: dict, ctx: Context, parent: 'JSONBaseWidget'):
         super().__init__()
 
         self.name = name
@@ -96,15 +87,11 @@ class JSONBaseWidget:
         self.parent = parent
         self.ctx = ctx
 
-        if "definitions" in schema:
-            self.definitions = schema["definitions"]
-        elif parent:
-            self.definitions = parent.definitions
-        else:
-            self.definitions = {}
-
     @classmethod
-    def supports_schema(cls, schema):
+    def supports_schema(cls, schema: dict) -> bool:
+        raise NotImplementedError
+
+    def dump_json_object(self):
         raise NotImplementedError
 
     def initialise(self):
@@ -112,9 +99,6 @@ class JSONBaseWidget:
             self.load_json_object(self.schema['default'])
 
     def load_json_object(self, data):
-        raise NotImplementedError
-
-    def dump_json_object(self):
         raise NotImplementedError
 
 
@@ -125,7 +109,7 @@ class UnsupportedSchemaWidget(JSONBaseWidget, QtWidgets.QLabel):
     If the element is a reference, the reference name is listed instead of a type.
     """
 
-    def __init__(self, name, schema, ctx, parent):
+    def __init__(self, name: str, schema: dict, ctx: Context, parent: JSONBaseWidget):
         super().__init__(name, schema, ctx, parent)
 
         QtWidgets.QLabel.__init__(self, "(Unsupported schema entry: {}, {})"
@@ -133,26 +117,24 @@ class UnsupportedSchemaWidget(JSONBaseWidget, QtWidgets.QLabel):
         self.setStyleSheet("QLabel { font-style: italic; }")
 
     @classmethod
-    def supports_schema(cls, schema):
+    def supports_schema(cls, schema: dict) -> bool:
         return True
-
-    def load_json_object(self, value):
-        pass
 
     def dump_json_object(self):
         return "(unsupported)"
 
+    def load_json_object(self, value):
+        pass
+
 
 class JSONObjectWidget(JSONBaseWidget, QtWidgets.QGroupBox):
-    """
-        Widget representation of an object.
+    """Widget representation of an object.
 
-        Objects have properties, each of which is a widget of its own.
-        We display these in a groupbox, which on most platforms will
-        include a border.
+    Objects have properties, each of which is a widget of its own.
+    We display these in a group-box, which on most platforms will include a border.
     """
 
-    def __init__(self, name, schema, ctx, parent):
+    def __init__(self, name: str, schema: dict, ctx: Context, parent: JSONBaseWidget):
         super().__init__(name, schema, ctx, parent)
 
         self.setTitle(self.name)
@@ -180,19 +162,21 @@ class JSONObjectWidget(JSONBaseWidget, QtWidgets.QGroupBox):
                 # TODO pattern properties control widget
 
     @classmethod
-    def supports_schema(cls, schema):
+    def supports_schema(cls, schema: dict) -> bool:
         return schema.get("type") == "object"
 
-    def load_json_object(self, data):
+    def dump_json_object(self) -> dict:
+        return {k: v.dump_json_object() for k, v in self.properties.items()}
+
+    def load_json_object(self, data: dict):
         for k, v in data.items():
             self.properties[k].load_json_object(v)
 
-    def dump_json_object(self):
-        return {k: v.dump_json_object() for k, v in self.properties.items()}
-
 
 class JSONPrimitiveBaseWidget(JSONBaseWidget, QtWidgets.QWidget):
-    def __init__(self, name, schema, ctx, parent):
+    """Base class for JSON serialising widgets which have a single input widget"""
+
+    def __init__(self, name: str, schema: dict, ctx: Context, parent: JSONBaseWidget):
         super().__init__(name, schema, ctx, parent)
         layout = QtWidgets.QHBoxLayout()
 
@@ -211,19 +195,18 @@ class JSONPrimitiveBaseWidget(JSONBaseWidget, QtWidgets.QWidget):
 
 
 class JSONEnumWidget(JSONPrimitiveBaseWidget):
-    """
-        Widget representation of an enumerated property.
-    """
+    """Widget representation of an enumerated property."""
+    
     primitive_class = QtWidgets.QComboBox
 
-    def __init__(self, name, schema, ctx, parent):
+    def __init__(self, name: str, schema: dict, ctx: Context, parent: JSONBaseWidget):
         super().__init__(name, schema, ctx, parent)
 
         self._enum_values = schema['enum']
         self._primitive_widget.addItems([str(e) for e in schema['enum']])
 
     @classmethod
-    def supports_schema(cls, schema):
+    def supports_schema(cls, schema: dict) -> bool:
         return "enum" in schema
 
     def dump_json_object(self):
@@ -236,32 +219,31 @@ class JSONEnumWidget(JSONPrimitiveBaseWidget):
 
 
 class JSONColorStringWidget(JSONPrimitiveBaseWidget):
-    """
-        Widget representation of a string with the 'color' format.
-    """
+    """Widget representation of a string with the 'color' format keyword."""
+
     primitive_class = QColorButton
 
     @classmethod
-    def supports_schema(cls, schema):
+    def supports_schema(cls, schema: dict) -> bool:
         return (schema.get('type') == 'string' and
                 schema.get('format') == 'color')
 
-    def dump_json_object(self):
+    def dump_json_object(self) -> str:
         return self._primitive_widget.color()
 
-    def load_json_object(self, data):
+    def load_json_object(self, data: str):
         self._primitive_widget.setColor(data)
 
 
 class JSONStringWidget(JSONPrimitiveBaseWidget):
-    """
-        Widget representation of a string.
+    """Widget representation of a string.
 
-        Strings are text boxes with labels for names.
+    Strings are text boxes with labels for names.
     """
+
     primitive_class = QtWidgets.QLineEdit
 
-    def __init__(self, name, schema, ctx, parent):
+    def __init__(self, name: str, schema: dict, ctx: Context, parent: JSONBaseWidget):
         super().__init__(name, schema, ctx, parent)
 
         self._validator = ValidationFormatter(self._primitive_widget)
@@ -291,6 +273,16 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
 
         self._primitive_widget.textChanged.connect(self._validate_text)
 
+    @classmethod
+    def supports_schema(cls, schema):
+        return schema.get('type') == 'string'
+
+    def dump_json_object(self):
+        return str(self._primitive_widget.text())
+
+    def load_json_object(self, data):
+        self._primitive_widget.setText(data)
+
     def _load_uri_from_file(self):
         url, filter = QtWidgets.QFileDialog.getOpenFileUrl(self, 'Open URL')
         if url.isEmpty():
@@ -301,30 +293,25 @@ class JSONStringWidget(JSONPrimitiveBaseWidget):
     def _validate_text(self):
         self._validator(self._primitive_widget.text())
 
-    @classmethod
-    def supports_schema(cls, schema):
-        return schema.get('type') == 'string'
-
-    def load_json_object(self, data):
-        self._primitive_widget.setText(data)
-
-    def dump_json_object(self):
-        return str(self._primitive_widget.text())
-
 
 class SpinBoxWidgetBase(JSONPrimitiveBaseWidget):
-    """
-        Base class for spinbox widgets
-    """
+    """Base class for spinbox JSON serialising widgets."""
+
     primitive_class = not_implemented_property()
     step = not_implemented_property()
 
-    def __init__(self, name, schema, ctx, parent):
+    def __init__(self, name: str, schema: dict, ctx: Context, parent: JSONBaseWidget):
         super().__init__(name, schema, ctx, parent)
 
         self._set_limits(schema)
 
-    def _set_limits(self, schema):
+    def dump_json_object(self):
+        return self._primitive_widget.value()
+
+    def load_json_object(self, data):
+        self._primitive_widget.setValue(data)
+
+    def _set_limits(self, schema: dict):
         if "minimum" in schema:
             minimum = schema['minimum']
             if schema.get("exclusiveMinimum", False):
@@ -339,17 +326,10 @@ class SpinBoxWidgetBase(JSONPrimitiveBaseWidget):
 
             self._primitive_widget.setMaximum(maximum)
 
-    def load_json_object(self, data):
-        self._primitive_widget.setValue(data)
-
-    def dump_json_object(self):
-        return self._primitive_widget.value()
-
 
 class JSONIntegerWidget(SpinBoxWidgetBase):
-    """
-        Widget representation of an integer (SpinBox)
-    """
+    """Widget representation of an integer (SpinBox)."""
+
     primitive_class = QtWidgets.QSpinBox
     step = 1
 
@@ -359,9 +339,8 @@ class JSONIntegerWidget(SpinBoxWidgetBase):
 
 
 class JSONNumberWidget(SpinBoxWidgetBase):
-    """
-        Widget representation of a number (DoubleSpinBox)
-    """
+    """Widget representation of a number (DoubleSpinBox)."""
+
     primitive_class = QtWidgets.QDoubleSpinBox
     step = 0.01
 
@@ -371,9 +350,8 @@ class JSONNumberWidget(SpinBoxWidgetBase):
 
 
 class JSONBooleanWidget(JSONPrimitiveBaseWidget):
-    """
-        Widget representing a boolean (CheckBox)
-    """
+    """Widget representing a boolean (CheckBox)."""
+
     primitive_class = QtWidgets.QCheckBox
 
     @classmethod
@@ -388,16 +366,12 @@ class JSONBooleanWidget(JSONPrimitiveBaseWidget):
 
 
 class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
-    """
-        Widget representation of an array.
+    """Widget representation of an array.
 
-        Arrays can contain multiple objects of a type, or
-        they can contain objects of specific types.
+    Arrays can contain multiple objects of a type, or they can contain objects of specific types.
+    We include a label and button for adding types. """
 
-        We include a label and button for adding types.
-    """
-
-    def __init__(self, name, schema, ctx, parent):
+    def __init__(self, name: str, schema: dict, ctx: Context, parent: JSONBaseWidget):
         super().__init__(name, schema, ctx, parent)
 
         self.layout = QtWidgets.QVBoxLayout()
@@ -452,6 +426,47 @@ class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
     def supports_schema(cls, schema):
         return schema.get('type') == 'array'
 
+    def add_item(self, data=None):
+        index = self.items_list.count()
+        schema = self._get_item_schema(index)
+        obj = _create_widget("Item #{:d}".format(index), schema, self.ctx, self)
+
+        self.items_list.addItem("# {}".format(index))
+        self.widget_stack.addWidget(obj)
+
+        if data is not None:
+            obj.load_json_object(data)
+
+    def click_add(self):
+        self.add_item()
+
+    def click_remove(self):
+        self.remove_item()
+
+    def dump_json_object(self):
+        return [w.dump_json_object() for w in iter_widgets(self.widget_stack)]
+
+    def load_json_object(self, data):
+        for i, datum in enumerate(data):
+            if i < self.widget_stack.count():
+                self.widget_stack.widget(i).load_json_object(datum)
+            else:
+                self.add_item(datum)
+
+    def remove_item(self):
+        last_item_index = self.items_list.count() - 1
+        if last_item_index < 0:
+            return
+
+        self.items_list.takeItem(last_item_index)
+
+        widget = self.widget_stack.widget(last_item_index)
+        self.widget_stack.removeWidget(widget)
+
+    def _current_item_changed(self, current, previous):
+        index = self.items_list.indexFromItem(current).row()
+        self.widget_stack.setCurrentIndex(index)
+
     def _get_item_schema(self, index):
         if isinstance(self.items_schema, list):
             try:
@@ -464,47 +479,6 @@ class JSONArrayWidget(JSONBaseWidget, QtWidgets.QWidget):
             schema = self.items_schema
 
         return schema
-
-    def _current_item_changed(self, current, previous):
-        index = self.items_list.indexFromItem(current).row()
-        self.widget_stack.setCurrentIndex(index)
-
-    def click_add(self):
-        self.add_item()
-
-    def click_remove(self):
-        self.remove_item()
-
-    def add_item(self, data=None):
-        index = self.items_list.count()
-        schema = self._get_item_schema(index)
-        obj = _create_widget("Item #{:d}".format(index), schema, self.ctx, self)
-
-        self.items_list.addItem("# {}".format(index))
-        self.widget_stack.addWidget(obj)
-
-        if data is not None:
-            obj.load_json_object(data)
-
-    def remove_item(self):
-        last_item_index = self.items_list.count() - 1
-        if last_item_index < 0:
-            return
-
-        self.items_list.takeItem(last_item_index)
-
-        widget = self.widget_stack.widget(last_item_index)
-        self.widget_stack.removeWidget(widget)
-
-    def load_json_object(self, data):
-        for i, datum in enumerate(data):
-            if i < self.widget_stack.count():
-                self.widget_stack.widget(i).load_json_object(datum)
-            else:
-                self.add_item(datum)
-
-    def dump_json_object(self):
-        return [w.dump_json_object() for w in iter_widgets(self.widget_stack)]
 
 
 supported_widgets = (

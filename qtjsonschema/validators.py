@@ -3,6 +3,8 @@ import re
 from PyQt5 import QtGui
 from jsonschema import FormatChecker, FormatError
 
+from .errors import ValidationError
+
 
 class FormatValidator:
     def __init__(self, format):
@@ -15,13 +17,6 @@ class FormatValidator:
         except FormatError:
             raise ValidationError("Value {!r} does not confirm to format {!r}".format(text, self._format))
         return True
-
-
-class ValidationError(Exception):
-    def __init__(self, message):
-        super().__init__(message)
-
-        self.message = message
 
 
 class RegexValidator:
