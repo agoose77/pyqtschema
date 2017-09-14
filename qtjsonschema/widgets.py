@@ -170,7 +170,12 @@ class JSONObjectWidget(JSONBaseWidget, QtWidgets.QGroupBox):
 
     def load_json_object(self, data: dict):
         for k, v in data.items():
-            self.properties[k].load_json_object(v)
+            try:
+                widget = self.properties[k]
+            except KeyError:
+                continue  # Probably a patternProperty
+
+            widget.load_json_object(v)
 
 
 class JSONPrimitiveBaseWidget(JSONBaseWidget, QtWidgets.QWidget):
