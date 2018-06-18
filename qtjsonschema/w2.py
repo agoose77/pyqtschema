@@ -11,6 +11,7 @@ from .validators import ValidationFormatter, FormatValidator, LengthValidator, R
 from abc import ABC, abstractmethod
 from typing import Tuple
 
+
 # Widgets supporting $ref
 # $ref, items, allOf, anyOf, additionalItems, dependencies,
 # oneOf, type, extends, properties, patternProperties,
@@ -250,6 +251,7 @@ class ColorStringWidget(InputWidgetBase):
 
 class DateTimeStringWidget(InputWidgetBase):
     """Widget representation of a string with the 'date-time' format keyword."""
+
     def _create_primitive_widget(self):
         widget = QtWidgets.QDateTimeEdit()
         widget.setCalendarPopup(True)
@@ -272,8 +274,11 @@ class DateTimeStringWidget(InputWidgetBase):
 def default_bool(schema):
     return False
 
+
 def default_number(schema):
     pass
+
+
 
 
 class StringWidget(InputWidgetBase):
@@ -571,7 +576,7 @@ supported_widgets = (
 def create_widget(name: str, schema: dict, schema_uri: str = None) -> WidgetBase:
     """Create widget according to given JSON schema.
     if `schema_uri` is omitted, external references may only be resolved against absolute URI `id` fields--
-    
+
     :param name: widget name
     :param schema: dict-like JSON object
     :param schema_uri: URI corresponding to given schema object
@@ -606,6 +611,86 @@ class Controller:
         # self.v
 
 
+class Field:
+
+    def __init__(self, path: Tuple[str], schema: dict):
+        self.path = path
+        self.schema = schema
+
+    @property
+    def default(self):
+        try:
+            return self.schema['default']
+        except KeyError:
+            return self._guess_default()
+
+    def _guess_default(self):
+        raise NotImplementedError
+
+
+class NullField(Field):
+
+    def _guess_default(self):
+        return None
+
+
+class ArrayWidget:
+
+    def add_item(self):
+        self.controller.add_item()
+
+
+class Schema:
+
+    def __init__(self):
+        pass
+
+
+def predicate(**kwds):
+    class Predicate:
+
+        def __init__(self, func):
+            self._func = func
+
+        def __set_name__(self, owner, name):
+            func = self._func.__get__(owner)
+            vars(owner).setdefault('_predicates', []).append((kwds, func))
+
+    return Predicate
+
+
+class WidgetFactory:
+
+    @predicate(type='array')
+    def create_array(self, schema: dict, path: Tuple[str]):
+        # Will need to call the factory on the children
+        pass
+
+    def create_boolean(self, schema: dict, path: Tuple[str]):
+        pass
+
+    def create_integer(self, schema: dict, path: Tuple[str]):
+        pass
+
+    def create_number(self, schema: dict, path: Tuple[str]):
+        pass
+
+    def create_string(self, schema: dict, path: Tuple[str]):
+        pass
+
+    def create_enum(self, schema: dict, path: Tuple[str]):
+        pass
+
+    def create_widget(self, schema: dict, path: Tuple[str]):
+        pass
+
+
+
+def load_schema(schema):
+    type_name = schema['type']
+
+
+
 def _create_widget(name: str, schema: dict, ctx: Context, path: Tuple[str]) -> WidgetBase:
     if "id" in schema:
         ctx = ctx.follow_uri(schema['id'])
@@ -624,3 +709,4 @@ def _create_widget(name: str, schema: dict, ctx: Context, path: Tuple[str]) -> W
 
     widget.initialise()
     return widget
+
