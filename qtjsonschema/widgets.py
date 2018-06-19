@@ -2,14 +2,15 @@
 Widget definitions for JSON schema elements.
 """
 
+from abc import ABC, abstractmethod
+from typing import Tuple
+
 from PyQt5 import QtCore, QtWidgets, QtGui
 
 from .errors import UnsupportedSchemaError
 from .tools import FileResourceLoader, HTTPResourceLoader, Context, DocumentLoader, create_cached_uri_loader_registry
 from .validators import ValidationFormatter, FormatValidator, LengthValidator, RegexValidator
 
-from abc import ABC, abstractmethod
-from typing import Tuple
 
 # Widgets supporting $ref
 # $ref, items, allOf, anyOf, additionalItems, dependencies,
@@ -207,6 +208,33 @@ class InputWidgetBase(WidgetBase, QtWidgets.QWidget):
         return self.PRIMITIVE_CLASS(self)
 
 
+def repr_schema(schema, ctx) -> str:
+    if "id" in schema:
+        ctx = ctx.follow_uri(schema['id'])
+
+    while "$ref" in schema:
+        schema = ctx.dereference(schema['$ref'])
+
+    if "title" in schema:
+        return schema["title"]
+
+    if "type" in schema:
+        if schema["type"] == "array":
+            return f"array[{repr_schema(schema['items'], ctx)}]"
+
+        return schema["type"]
+
+
+class MetaWidget(WidgetBase, QtWidgets.QComboBox):
+
+    def __init__(self, name: str, schema: dict, ctx: Context, path: Tuple[str]):
+        super().__init__(name, schema, ctx, path)
+
+        self.addItems([
+            repr_schema(s, ctx) for s in schema
+        ])
+
+
 class EnumWidget(InputWidgetBase):
     """Widget representation of an enumerated property."""
 
@@ -250,6 +278,7 @@ class ColorStringWidget(InputWidgetBase):
 
 class DateTimeStringWidget(InputWidgetBase):
     """Widget representation of a string with the 'date-time' format keyword."""
+
     def _create_primitive_widget(self):
         widget = QtWidgets.QDateTimeEdit()
         widget.setCalendarPopup(True)
@@ -271,6 +300,7 @@ class DateTimeStringWidget(InputWidgetBase):
 
 def default_bool(schema):
     return False
+
 
 def default_number(schema):
     pass
