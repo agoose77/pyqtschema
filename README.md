@@ -1,5 +1,7 @@
-# PyQtJSONSchema (qtjsonschema)
+# Now deprecated
+A cleaner effort can be found at https://github.com/agoose77/qt-jsonschema-form
 
+# PyQtJSONSchema (qtjsonschema)
 PyQtJSONSchema is a library which can read a JSON schema (Draft 4) and generate a corresponding PyQt editor widget.
 
 
